@@ -103,29 +103,31 @@ class His2(QObject):
     def updateStructor(self):
         pass
 
-    def createVisitNumber(self):
-        sql_hosxp = """         
+    def createVisitNumber(self, visit_date: str | None = None):
+        if self.vendor != 'hosxp_pcu':
+            return '0'
 
-                      select concat(
-                      CAST((RIGHT(YEAR(CURRENT_DATE)+543,2)) AS CHAR CHARACTER SET utf8)
-                      ,CAST((LPAD(MONTH(CURRENT_DATE),2,0)) AS CHAR CHARACTER SET utf8)
-                      ,CAST((LPAD(DAY(CURRENT_DATE),2,0)) AS CHAR CHARACTER SET utf8)
-                      ,CAST((TIME_FORMAT(TIME(NOW()),'%H%i%s')) AS CHAR CHARACTER SET utf8)
-                      ) as vn; 
+        try:
+            visit_date_obj = datetime.strptime(str(visit_date), '%Y-%m-%d').date() if visit_date else date.today()
+        except ValueError:
+            visit_date_obj = date.today()
 
-                      """
+        prefix = f"{(visit_date_obj.year + 543) % 100:02d}{visit_date_obj.month:02d}{visit_date_obj.day:02d}"
 
-        if self.vendor == 'hosxp_pcu':
-            sql = sql_hosxp
-        else:
-            sql = "select 0 as vn"
-
-        cur = self.execute_with_retry(sql, dict_cursor=True)
-        if cur is None:
-            return None
-        row = cur.fetchone()
-        cur.close()
-        return row['vn']
+        while True:
+            now = datetime.now()
+            vn = f"{prefix}{now:%H%M%S}"
+            cur = self.execute_with_retry(
+                f"select count(*) as c from ovst where vn = '{vn}'",
+                dict_cursor=True
+            )
+            if cur is None:
+                return None
+            row = cur.fetchone()
+            cur.close()
+            if int(row['c'] or 0) == 0:
+                return vn
+            time.sleep(1.1)
 
     def getPerson(self, cid: str):
         print('His getPerson',cid,self.vendor)
@@ -134,6 +136,7 @@ class His2(QObject):
 ,t.sex,t.birthday as 'birth' 
 ,concat('(',t.pttype,') ',p.`name`) as 'inscl'
 ,concat(t.addrpart,' ม.' ,t.moopart ,' ',a.full_name) as 'addr',
+pe.person_id,
 pe.pttype_no,
 pe.pttype_hospmain,
 pe.pttype_hospsub,
@@ -310,23 +313,30 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
 
         sub_inscl = data.get('rightcode') or None
 
-        claim_type = data.get('claim_type')
-        claim_code = data.get('claim_code')
-        mobile = data.get('mobile')
-        hcode = data.get('hcode')
-        i_price_code = data.get('i_price_code')
-        o_price_code = data.get('o_price_code')
-        doctor = data.get('doctor')
-        staff = data.get('staff')
-        dep = data.get('dep')
-        spclty = data.get('spclty')
-        visit_date = data.get('visit_date')
-        visit_time = data.get('visit_time')
+        claim_type = data.get('claim_type') or ''
+        claim_code = data.get('claim_code') or ''
+        mobile = data.get('mobile') or self.getMobileNumber(cid)
+        hcode = data.get('hcode') or ''
+        i_price_code = data.get('i_price_code') or '3001647'
+        o_price_code = data.get('o_price_code') or '3000002'
+        doctor = data.get('doctor') or '0010'
+        staff = data.get('staff') or 'sa'
+        dep = data.get('dep') or '014'
+        spclty = data.get('spclty') or '01'
+        visit_date = data.get('visit_date') or date.today().isoformat()
+        visit_time = data.get('visit_time') or datetime.now().strftime('%H:%M:%S')
+        dx_code = str(data.get('dx_code') or 'Z718').strip().upper()
+        main_pdx = str(data.get('main_pdx') or (dx_code[:3] if len(dx_code) >= 3 else dx_code)).strip().upper()
 
         hn = patient.get('hn')
         sex = patient.get('sex')
 
-        all_d = date.today() - patient.get('birthday')
+        try:
+            visit_date_obj = datetime.strptime(str(visit_date), '%Y-%m-%d').date()
+        except ValueError:
+            visit_date_obj = date.today()
+
+        all_d = visit_date_obj - patient.get('birthday')
         age_y = int(all_d.days / 365)
         age_m = int((all_d.days % 365) / 30)
         age_d = ((all_d.days % 365) % 30)
@@ -351,8 +361,14 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
 
         p = self.getPcode(pttype)
         pcode = p if p else ''
+        if not hcode:
+            hcode = pttype_hospsub or ''
 
-        vn = self.createVisitNumber()
+        person_id = ''
+        if visit_rights.get('person'):
+            person_id = str(visit_rights['person'].get('person_id') or '').strip()
+
+        vn = self.createVisitNumber(visit_date)
 
         sql = f"""  
 
@@ -363,100 +379,169 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
                       set @cid = '{cid}';
                       set @claim_type = '{claim_type}';
                       set @claim_code = '{claim_code}';
-                      set @cc = '{claim_code}';
-
+                      set @cc = 'ให้บริการ telemedicine';
 
                       set @hn = '{hn}';
                       set @sex = '{sex}';
                       set @age_y = '{age_y}';
                       set @age_m = '{age_m}';
                       set @age_d = '{age_d}';
-                      set @aid = '{aid}'; # รหัสจังหวัด อำเภอ ตำบล
-                      set @moopart = '{moopart}'; # หมู่ที่
-
+                      set @aid = '{aid}';
+                      set @moopart = '{moopart}';
 
                       set @pttype = '{pttype}';
                       set @pttypeno = (select (if ('{pttype_no}'= 'None','','{pttype_no}')));
                       set @hospmain = '{pttype_hospmain}';
                       set @hospsub = '{pttype_hospsub}';
                       set @pcode = '{pcode}';
-                      set @hcode = '{hcode}'; 
-
-
+                      set @hcode = '{hcode}';
+                      set @person_id = '{person_id}';
 
                       set @vstdate = @visit_date;
                       set @vsttime = @visit_time;
                       set @guid1 = '{uid1}';
                       set @guid2 = '{uid2}';
 
-
-
-                      set @ovst_seq_id = (select get_serialnumber('ovst_seq_id')); -- ใช้ ovst_seq_id หรือ seq_id
+                      set @ovst_seq_id = (select get_serialnumber('ovst_seq_id'));
                       set @nhso_seq_id = @ovst_seq_id;
                       set @nhso_seq_id = CAST(@nhso_seq_id AS CHAR CHARACTER SET utf8);
                       set @ovst_q_today = concat('ovst-q-',LEFT(@vn,6));
                       set @ovst_q = (select get_serialnumber(@ovst_q_today));
 
-
                       set @doctor = '{doctor}';
                       set @staff = '{staff}';
-                      set @dep = '{dep}'; #ห้องตรวจ
-                      set @spclty = '{spclty}'; #แผนก
-                      set @ovstlist = '01'; #มาเอง
-                      set @visit_type = ( SELECT   IF( (@visit_time  >= '16:30:00') OR (@visit_time <= '08:30:00') or (@visit_date in (SELECT holiday_date from holiday)),'O','I') );
+                      set @dep = '{dep}';
+                      set @spclty = '{spclty}';
+                      set @ovstlist = '05';
+                      set @ovstost = '99';
+                      set @visit_type = ( SELECT IF((@visit_time >= '16:30:00') OR (@visit_time <= '08:30:00') or (@visit_date in (SELECT holiday_date from holiday)),'O','I') );
                       set @lastvisit = 0;
                       set @pt_subtype = (select pt_subtype from pt_subtype where pcu is not null limit 1);
-
 
                       INSERT INTO vn_insert (vn) VALUES (@vn);
                       INSERT INTO vn_stat_signature (vn) VALUES (@vn);
 
-
-                      INSERT INTO ovst (hos_guid,vn,hn,vstdate,vsttime,doctor,hospmain,hospsub,oqueue,ovstist,pttype,pttypeno,spclty,cur_dep,pt_subtype,visit_type,staff) 
-                      VALUES (@guid1,@vn,@hn,@vstdate,@vsttime,@doctor,@hospmain,@hospsub,@ovst_q,@ovstlist,@pttype,@pttypeno,@spclty,@dep,@pt_subtype,@visit_type,@staff);
-
+                      INSERT INTO ovst (hos_guid,vn,hn,vstdate,vsttime,doctor,hospmain,hospsub,oqueue,ovstist,ovstost,pttype,pttypeno,spclty,cur_dep,pt_subtype,visit_type,staff)
+                      VALUES (@guid1,@vn,@hn,@vstdate,@vsttime,@doctor,@hospmain,@hospsub,@ovst_q,@ovstlist,@ovstost,@pttype,@pttypeno,@spclty,@dep,@pt_subtype,@visit_type,@staff);
 
                       INSERT INTO ovst_seq (vn,seq_id,nhso_seq_id,update_datetime,promote_visit,last_check_datetime)
-                      VALUES (@vn,@ovst_seq_id,@nhso_seq_id,NOW(),'N',NOW()); # complete
+                      VALUES (@vn,@ovst_seq_id,@nhso_seq_id,NOW(),'N',NOW());
 
+                      UPDATE ovst_seq
+                      SET pcu_person_id = @person_id,
+                          update_datetime = NOW(),
+                          last_check_datetime = NOW()
+                      WHERE vn = @vn;
 
                       INSERT INTO vn_stat (vn,hn,pdx,lastvisit,dx_doctor,
                       dx0,dx1,dx2,dx3,dx4,dx5,sex,age_y,age_m,age_d,aid,moopart,pttype,spclty,vstdate
-                      ,pcode,hcode,hospmain,hospsub,pttypeno,cid) 
+                      ,pcode,hcode,hospmain,hospsub,pttypeno,cid)
                       VALUES (@vn,@hn,'',@lastvisit,@doctor,'','','','','','',@sex,@age_y,@age_m,@age_d,@aid,@moopart,@pttype
                       ,@spclty,@vstdate,@pcode,@hcode,@hospmain,@hospsub,@pttypeno,@cid);
-
 
                       set @bw = (select bw from opdscreen where hn = @hn and bw>0 and vn<@vn order by vn desc limit 1);
                       set @height = (select height from opdscreen where hn = @hn and height>0 and vn<@vn order by vn desc limit 1);
                       set @waist = (select waist from opdscreen where hn = @hn and waist>0 and vn<@vn order by vn desc limit 1);
-                      set @bps = (select bps from opdscreen where hn = @hn  and vn<@vn order by vn desc limit 1);
-                      set @bpd = (select bpd from opdscreen where hn = @hn  and vn<@vn order by vn desc limit 1);
+                      set @bps = (select bps from opdscreen where hn = @hn and vn<@vn order by vn desc limit 1);
+                      set @bpd = (select bpd from opdscreen where hn = @hn and vn<@vn order by vn desc limit 1);
                       set @pulse = (select pulse from opdscreen where hn = @hn and vn<@vn order by vn desc limit 1);
                       set @temperature = '37.0';
-                      INSERT INTO opdscreen (hos_guid,vn,hn,vstdate,vsttime,bw,height,waist,bps,bpd,pulse,temperature) 
-                      VALUES (@guid2,@vn,@hn,@vstdate,@vsttime,@bw,@height,@waist,@bps,@bpd,@pulse,@temperature);
 
+                      INSERT INTO opdscreen (hos_guid,vn,hn,vstdate,vsttime,bw,height,waist,bps,bpd,pulse,temperature,cc)
+                      VALUES (@guid2,@vn,@hn,@vstdate,@vsttime,@bw,@height,@waist,@bps,@bpd,@pulse,@temperature,@cc);
 
+                      UPDATE opdscreen
+                      SET bmi = ROUND((bw / POWER((height / 100),2)), 3),
+                          cc = @cc
+                      WHERE hos_guid = @guid2;
 
+                      set @icode := (SELECT IF(@visit_type = 'O' ,'{o_price_code}','{i_price_code}'));
+                      set @price := (select price from nondrugitems where icode = @icode);
 
-                      set @icode :=  (SELECT IF(@visit_type = 'O' ,'{o_price_code}','{i_price_code}'));
-                      set @price :=  (select price from nondrugitems where icode = @icode);
                       INSERT INTO opitemrece (hos_guid,vn,hn,icode,qty,unitprice,vstdate,vsttime,
-                      staff,item_no,last_modified,sum_price) 
+                      staff,item_no,last_modified,sum_price,pttype,income,paidst)
                       VALUES (@guid2,@vn,@hn,@icode,1,@price,@vstdate,@vsttime,
-                      @staff,1,NOW(),@price);       
+                      @staff,1,NOW(),@price,@pttype,'12','02');
 
+                      UPDATE opitemrece
+                      SET rxdate = @vstdate,
+                          sub_type = '3',
+                          cost = 0,
+                          node_id = '',
+                          last_modified = NOW()
+                      WHERE hos_guid = @guid2;
+
+                      INSERT INTO opitemrece_summary
+                        (vn,rxdate,icode,income,qty,sum_price,department,hos_guid,opitemrece_id,opitemrece_did,hos_guid_ext)
+                      VALUES
+                        (@vn,@vstdate,@icode,'12',1,@price,'OPD',@guid2,NULL,'',NULL);
+
+                      DELETE FROM incoth WHERE vn = @vn;
+
+                      INSERT INTO incoth
+                        (vn,billdate,billtime,hn,incdate,inctime,income,paidst,rcpno,rcptamt,`user`,computer,finance_number,porder,discount,verify,pttype,hos_guid,hos_guid_ext)
+                      VALUES
+                        (@vn,@vstdate,@vsttime,@hn,@vstdate,@vsttime,'12','02',NULL,@price,NULL,NULL,NULL,NULL,NULL,'N',@pttype,NULL,NULL);
+
+                      INSERT INTO inc_opd_stat
+                        (vn,hn,vstdate,pttype,pcode,inc01,inc02,inc03,inc04,inc05,inc06,inc07,inc08,inc09,inc10,inc11,inc12,inc13,inc14,inc15,inc16,inc17,income,inc_drug,inc_nondrug,uinc01,uinc02,uinc03,uinc04,uinc05,uinc06,uinc07,uinc08,uinc09,uinc10,uinc11,uinc12,uinc13,uinc14,uinc15,uinc16,uinc17,uincome,uinc_drug,uinc_nondrug,hos_guid)
+                      VALUES
+                        (@vn,@hn,@vstdate,@pttype,NULL,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,@price,0,0,0,0,0,@price,0,0,NULL);
+
+                      INSERT INTO fbshistory
+                        (vn,hn,fbslevel,fbs1mo,fbs2mo,fbs3mo,fbs4mo,fbs5mo,fbs6mo,hos_guid)
+                      VALUES
+                        (@vn,@hn,NULL,0,0,0,0,0,0,NULL);
+
+                      UPDATE vn_stat
+                      SET income = @price,
+                          paid_money = 0,
+                          remain_money = 0,
+                          uc_money = @price,
+                          item_money = @price,
+                          inc12 = @price,
+                          inc_drug = 0,
+                          inc_nondrug = 0,
+                          pt_subtype = @pt_subtype,
+                          ym = DATE_FORMAT(@vstdate,'%Y-%m'),
+                          ill_visit = 'Y',
+                          old_diagnosis = 'N',
+                          debt_id_list = ''
+                      WHERE vn = @vn;
 
                       INSERT INTO dt_list (vn) VALUES (@vn);
 
-                      UPDATE patient SET last_visit= @vstdate,mobile_phone_number = '{mobile}'  WHERE  cid = @cid;
+                      UPDATE patient SET last_visit= @vstdate,mobile_phone_number = '{mobile}' WHERE cid = @cid;
 
+                      INSERT INTO visit_pttype (vn, pttype, staff, hospmain, hospsub, pttypeno, update_datetime,pttype_note,claim_code,auth_code)
+                      VALUES (@vn, @pttype, @staff, @hospmain, @hospsub, @pttypeno, NOW(),@claim_type,@claim_code,@claim_code);
 
-                      INSERT INTO visit_pttype (vn, pttype, staff, hospmain, hospsub, pttypeno, update_datetime,pttype_note,claim_code,auth_code) 
-                      VALUES (@vn, @pttype, @staff, @hospmain, @hospsub, @pttypeno , NOW(),@claim_type,@claim_code,@claim_code);
+                      set @dx = '{dx_code}';
+                      set @main_pdx = '{main_pdx}';
+                      set @ovst_diag_id = (select get_serialnumber('ovst_diag_id'));
+                      set @opi_dispense_id = (select get_serialnumber('opi_dispense_id'));
 
+                      INSERT INTO ovstdiag
+                        (ovst_diag_id,vn,icd10,hn,vstdate,vsttime,diagtype,icd103,hcode,doctor,episode,ext_code,hos_guid,dep_flag,ovst_oper_type,staff,dx_guid,lock_dx,dx_code_note,ovstdiag_severe_type_id,diag_no,update_datetime,confirm,confirm_staff,opi_guid,sct_id)
+                      VALUES
+                        (@ovst_diag_id,@vn,@dx,@hn,@vstdate,@vsttime,'1',NULL,NULL,@doctor,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NOW(),NULL,NULL,NULL,NULL);
 
+                      UPDATE ovst_seq
+                      SET update_datetime = NOW(),
+                          last_check_datetime = NOW()
+                      WHERE vn = @vn;
+
+                      UPDATE vn_stat
+                      SET pdx = @dx,
+                          main_pdx = @main_pdx
+                      WHERE vn = @vn;
+
+                      DELETE FROM opi_dispense WHERE hos_guid = @guid2;
+
+                      INSERT INTO opi_dispense
+                        (opi_dispense_id,hos_guid,icode,qty,usage_code,dose,unit_name,frequency_code,time_code,drug_hint_text,modify_datetime,modify_staff,modify_computer,print_sticker,price,sp_use,usage_unit_code,doctor,usage_line1,usage_line2,usage_line3,usage_line4,usage_shortlist,usage_lock,med_plan_number,orderstatus,use_rx_pattern,opi_dispense_type_id,opi_dispense_item_type_id,opi_dispense_qty_type_id,opi_dispense_usage_type_id,opi_dispense_his_name,pttype_items_price_id,depcode,shortlist,discount,usage_eng_line1,usage_eng_line2,usage_eng_line3,usage_eng_line4,lang,qty_per_day,finish_date,usage_note,presc_duration_days)
+                      VALUES
+                        (@opi_dispense_id,@guid2,@icode,1,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
 
                       """
 
@@ -597,14 +682,15 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
                               set @staff = '{staff}';
                               set @dep = '{dep}'; #ห้องตรวจ
                               set @spclty = '{spclty}'; #แผนก
-                              set @ovstlist = '01'; #มาเอง
+                              set @ovstlist = '05'; #Telehealth
+                              set @ovstost = '99';
                               set @visit_type = ( SELECT   IF( (@visit_time  >= '16:30:00') OR (@visit_time <= '08:30:00') or (@visit_date in (SELECT holiday_date from holiday)),'O','I') );
                               set @lastvisit = 0;
                               set @pt_subtype = (select pt_subtype from pt_subtype where pcu is not null limit 1);
 
                               -- update opdscreen SET cc =  concat('{claim_code}','\r\n',cc)  where vn = @vn;
 
-                              update ovst SET pttype=@pttype,pttypeno=@pttypeno,pt_subtype=@pt_subtype where vn = @vn;                          
+                              update ovst SET pttype=@pttype,pttypeno=@pttypeno,pt_subtype=@pt_subtype,ovstost=@ovstost where vn = @vn;                          
 
                               update vn_stat SET pttype = @pttype where vn = @vn;       
 

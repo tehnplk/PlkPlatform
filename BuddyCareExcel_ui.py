@@ -84,6 +84,12 @@ class BuddyCareExcelUI(QMainWindow):
         self.select_all_checkbox.stateChanged.connect(self.on_select_all_changed)
         self.select_all_checkbox.setMinimumHeight(36)
 
+        self.vn_filter = QComboBox()
+        self.vn_filter.addItems(["ทั้งหมด", "มี VN แล้ว", "ไม่มี VN"])
+        self.vn_filter.setMinimumWidth(140)
+        self.vn_filter.setMinimumHeight(38)
+        self.vn_filter.currentIndexChanged.connect(self.apply_filters)
+
         self.btn_open_visit = QPushButton("เปิด-Visit")
         self.btn_open_visit.setMinimumHeight(40)
         self.btn_open_visit.setEnabled(False)
@@ -146,6 +152,8 @@ class BuddyCareExcelUI(QMainWindow):
 
         select_row = QHBoxLayout()
         select_row.addWidget(self.select_all_checkbox)
+        select_row.addSpacing(12)
+        select_row.addWidget(self.vn_filter)
         select_row.addStretch(1)
         select_row.addWidget(self.lookup_result_label, 2)
         select_row.addStretch(1)

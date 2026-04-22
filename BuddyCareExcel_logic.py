@@ -11,11 +11,21 @@ import pymysql.cursors
 from dotenv import load_dotenv
 from PyQt6.QtCore import QObject, Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QStandardItem
-from PyQt6.QtWidgets import QFileDialog, QMessageBox
+from PyQt6.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QFormLayout,
+    QLineEdit,
+    QMessageBox,
+    QVBoxLayout,
+)
 
 from BuddyCareExcel_ui import BuddyCareExcelUI
+from His_lib import His2
 from PersonDetail_dlg import DlgPersonDetail
-from Setting_helper import load_db_settings
+from Setting_helper import load_db_settings, read_setting, save_settings
 
 PREFIXES = ["นางสาว", "น.ส.", "นาง", "นาย", "ด.ญ.", "ด.ช.", "พระ"]
 REQUIRED_COLUMNS = ["วันที่", "ชื่อ-สกุล", "สถานะ"]
@@ -207,6 +217,75 @@ def lookup_visit_info_by_date_cid(cursor, date_xls, cid: str) -> dict[str, str]:
         return {"วันที่ hos": "", "VN": "", "VST_TYPE": ""}
 
     return lookup_visit_info_by_date_hn(cursor, date_xls, hn)
+
+
+def lookup_icd101(cursor, code: str) -> Optional[dict[str, Any]]:
+    normalized_code = str(code).strip().upper()
+    if not normalized_code:
+        return None
+
+    sql = (
+        "SELECT code, name "
+        "FROM icd101 "
+        "WHERE TRIM(code) = %s "
+        "LIMIT 1"
+    )
+    cursor.execute(sql, (normalized_code,))
+    return cursor.fetchone()
+
+
+def load_doctor_options(cursor) -> list[tuple[str, str]]:
+    sql = (
+        "SELECT code, name "
+        "FROM doctor "
+        "WHERE TRIM(code) <> '' "
+        "ORDER BY code"
+    )
+    cursor.execute(sql)
+    rows = cursor.fetchall() or []
+    return [
+        (str(row.get("code", "") or "").strip(), str(row.get("name", "") or "").strip())
+        for row in rows
+        if str(row.get("code", "") or "").strip()
+    ]
+
+
+class DxDoctorDialog(QDialog):
+    def __init__(self, dx_code: str, doctor_options: list[tuple[str, str]], default_doctor_code: str, parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("ระบุรหัสวินิจฉัย")
+        self.setModal(True)
+        self.resize(420, 140)
+
+        self.dx_input = QLineEdit(dx_code)
+        self.dx_input.setPlaceholderText("เช่น Z718")
+
+        self.doctor_combo = QComboBox()
+        for code, name in doctor_options:
+            label = f"{code} - {name}" if name else code
+            self.doctor_combo.addItem(label, code)
+
+        if default_doctor_code:
+            index = self.doctor_combo.findData(default_doctor_code)
+            if index >= 0:
+                self.doctor_combo.setCurrentIndex(index)
+
+        form = QFormLayout()
+        form.addRow("รหัสวินิจฉัย", self.dx_input)
+        form.addRow("Doctor", self.doctor_combo)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+        layout.addWidget(buttons)
+
+    def values(self) -> tuple[str, str]:
+        dx_code = self.dx_input.text().strip().upper()
+        doctor_code = str(self.doctor_combo.currentData() or "").strip()
+        return dx_code, doctor_code
 
 
 def get_person_detail_by_cid(cid: str) -> Optional[dict[str, Any]]:
@@ -408,6 +487,7 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
     def update_open_visit_button_state(self) -> None:
         if self.df is None or self.df.empty:
             self.btn_open_visit.setEnabled(False)
+            self.btn_open_visit.setText("เปิด-Visit")
             return
 
         selected_with_cid = self.df[
@@ -415,7 +495,12 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
             & self.df["cid"].fillna("").astype(str).str.strip().ne("")
             & self.df["VN"].fillna("").astype(str).str.strip().eq("")
         ]
-        self.btn_open_visit.setEnabled(not selected_with_cid.empty)
+        selected_count = len(selected_with_cid)
+        self.btn_open_visit.setEnabled(selected_count > 0)
+        if selected_count > 0:
+            self.btn_open_visit.setText(f"เปิด Visit {selected_count} คน")
+        else:
+            self.btn_open_visit.setText("เปิด-Visit")
 
     @staticmethod
     def has_text_value(value) -> bool:
@@ -490,6 +575,16 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
         if selected_status and selected_status != "ทั้งหมด":
             filtered_df = filtered_df[
                 filtered_df["สถานะ"].astype(str).str.strip() == selected_status
+            ]
+
+        selected_vn_filter = self.vn_filter.currentText().strip()
+        if selected_vn_filter == "มี VN แล้ว":
+            filtered_df = filtered_df[
+                filtered_df["VN"].fillna("").astype(str).str.strip().ne("")
+            ]
+        elif selected_vn_filter == "ไม่มี VN":
+            filtered_df = filtered_df[
+                filtered_df["VN"].fillna("").astype(str).str.strip().eq("")
             ]
 
         self._visible_indices = filtered_df.index.tolist()
@@ -638,11 +733,151 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
         if len(selected_df) > 20:
             suffix = f"\n... และอีก {len(selected_df) - 20} รายการ"
 
-        QMessageBox.information(
+        reply = QMessageBox.question(
             self,
-            "รายการที่เลือก (Visit)",
-            "\n".join(lines) + suffix,
+            "ยืนยันเปิด Visit",
+            "ต้องการเปิด Visit สำหรับรายการที่เลือกหรือไม่\n\n"
+            + "\n".join(lines)
+            + suffix,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
         )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        dx_code = read_setting("LAST_DX_CODE", "Z718").strip().upper() or "Z718"
+        default_doctor_code = read_setting("LAST_DOCTOR_CODE", "0010").strip() or "0010"
+        icd_row = None
+        selected_doctor_code = default_doctor_code
+        try:
+            icd_conn = create_db_connection()
+            icd_cursor = icd_conn.cursor()
+            try:
+                doctor_options = load_doctor_options(icd_cursor)
+            finally:
+                icd_cursor.close()
+                icd_conn.close()
+        except Exception as exc:  # noqa: BLE001
+            print(f"[on_open_visit_clicked] load doctor options failed: {exc}")
+            traceback.print_exc()
+            QMessageBox.critical(self, "โหลดรายชื่อ Doctor ไม่สำเร็จ", str(exc))
+            return
+
+        if not doctor_options:
+            QMessageBox.warning(self, "ไม่พบรายชื่อ Doctor", "ไม่พบข้อมูลในตาราง doctor")
+            return
+
+        while True:
+            dialog = DxDoctorDialog(dx_code, doctor_options, selected_doctor_code, self)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+
+            dx_code, selected_doctor_code = dialog.values()
+            if not dx_code:
+                QMessageBox.warning(self, "ยังไม่ได้ระบุรหัสวินิจฉัย", "กรุณาระบุรหัสวินิจฉัยก่อน process open visit")
+                continue
+            if not selected_doctor_code:
+                QMessageBox.warning(self, "ยังไม่ได้เลือก Doctor", "กรุณาเลือก Doctor ก่อน process open visit")
+                continue
+
+            try:
+                icd_conn = create_db_connection()
+                icd_cursor = icd_conn.cursor()
+                try:
+                    icd_row = lookup_icd101(icd_cursor, dx_code)
+                finally:
+                    icd_cursor.close()
+                    icd_conn.close()
+            except Exception as exc:  # noqa: BLE001
+                print(f"[on_open_visit_clicked] icd101 lookup failed for {dx_code}: {exc}")
+                traceback.print_exc()
+                QMessageBox.critical(self, "ตรวจสอบรหัสวินิจฉัยไม่สำเร็จ", str(exc))
+                return
+
+            if icd_row:
+                break
+
+            QMessageBox.warning(
+                self,
+                "ไม่พบรหัสวินิจฉัย",
+                f"ไม่พบรหัส {dx_code} ในตาราง icd101\nกรุณากรอกใหม่หรือกดยกเลิก",
+            )
+
+        main_pdx = dx_code[:3] if len(dx_code) >= 3 else dx_code
+
+        try:
+            his = His2()
+        except Exception as exc:  # noqa: BLE001
+            print(f"[on_open_visit_clicked] cannot create His2: {exc}")
+            traceback.print_exc()
+            QMessageBox.critical(self, "เชื่อมต่อ HIS ไม่สำเร็จ", str(exc))
+            return
+
+        if not his.his_is_connected():
+            QMessageBox.critical(self, "เชื่อมต่อ HIS ไม่สำเร็จ", "ไม่สามารถเชื่อมต่อฐานข้อมูล HIS ได้")
+            return
+
+        success_count = 0
+        error_messages: list[str] = []
+
+        for idx, row in selected_df.iterrows():
+            cid = str(row.get("cid", "") or "").strip()
+            visit_date = to_mysql_date(row.get("วันที่ xls", ""))
+            if not cid or not visit_date:
+                error_messages.append(f"แถว {idx + 1}: ข้อมูล CID หรือวันที่ไม่ถูกต้อง")
+                continue
+
+            payload = {
+                "cid": cid,
+                "visit_date": visit_date,
+                "dx_code": dx_code,
+                "main_pdx": main_pdx,
+                "doctor": selected_doctor_code,
+            }
+
+            try:
+                vn = his.openVisitHosxp(payload)
+                if not vn:
+                    error_messages.append(f"CID {cid}: เปิด Visit ไม่สำเร็จ")
+                    continue
+
+                lookup_conn = create_db_connection()
+                lookup_cursor = lookup_conn.cursor()
+                try:
+                    visit_info = lookup_visit_info_by_date_cid(
+                        lookup_cursor,
+                        row.get("วันที่ xls", ""),
+                        cid,
+                    )
+                finally:
+                    lookup_cursor.close()
+                    lookup_conn.close()
+                self.df.at[idx, "วันที่ hos"] = visit_info["วันที่ hos"] or visit_date
+                self.df.at[idx, "VN"] = str(vn)
+                self.df.at[idx, "VST_TYPE"] = "05"
+                self.df.at[idx, "__selected"] = False
+                success_count += 1
+            except Exception as exc:  # noqa: BLE001
+                print(f"[on_open_visit_clicked] open visit failed for CID {cid}: {exc}")
+                traceback.print_exc()
+                error_messages.append(f"CID {cid}: {exc}")
+
+        self.apply_filters()
+
+        if success_count > 0:
+            save_settings({
+                "LAST_DX_CODE": dx_code,
+                "LAST_DOCTOR_CODE": selected_doctor_code,
+            })
+
+        message_lines = [f"เปิด Visit สำเร็จ {success_count} รายการ"]
+        if error_messages:
+            message_lines.append("")
+            message_lines.extend(error_messages[:10])
+            if len(error_messages) > 10:
+                message_lines.append(f"... และอีก {len(error_messages) - 10} รายการ")
+
+        QMessageBox.information(self, "ผลการเปิด Visit", "\n".join(message_lines))
 
     def on_table_double_click(self, index) -> None:
         if index.column() != self.cid_column_index:

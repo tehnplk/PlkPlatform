@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 
 from openpyxl import Workbook
 from dataclasses import dataclass, field
@@ -59,7 +60,8 @@ class DataSet:
 
 
 def _resolve_app_path(relative_path: str) -> Path:
-    return Path(__file__).resolve().parent / relative_path
+    base_path = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    return base_path / relative_path
 
 
 def _load_sql() -> str:

@@ -5,7 +5,7 @@ a = Analysis(
     ['start.py'],
     pathex=[],
     binaries=[],
-    datas=[('icon.ico', '.'), ('icon.png', '.')],
+    datas=[('icon.ico', '.'), ('icon.png', '.'), ('mysql_visit_type_count.sql', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

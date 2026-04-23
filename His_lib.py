@@ -1,7 +1,7 @@
-from PyQt5.QtCore import QObject
+from PyQt6.QtCore import QObject
 import pymysql
 from pymysql.constants import CLIENT
-from PyQt5.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 import uuid
 
 from datetime import date, datetime

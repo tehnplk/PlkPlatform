@@ -16,7 +16,7 @@ class MainUI(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Plk Platform")
-        self.resize(1400, 900)
+        self.resize(1100, 680)
         self._has_positioned_on_show = False
 
         self.mdi_area = QMdiArea()
@@ -71,26 +71,27 @@ class MainUI(QMainWindow):
         self.main_toolbar.setStyleSheet(
             """
             QToolBar {
-                background: #eff6ff;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #581c87, stop:1 #7c3aed);
                 border: none;
-                border-bottom: 1px solid #bfdbfe;
+                border-bottom: 1px solid #8b5cf6;
                 spacing: 10px;
-                padding: 8px 12px;
+                padding: 3px 10px;
             }
             QToolButton {
-                background: #ffffff;
-                border: 1px solid #bfdbfe;
-                border-radius: 12px;
-                padding: 8px 10px;
-                font-size: 13px;
+                background: #faf5ff;
+                border: 1px solid #c4b5fd;
+                border-radius: 8px;
+                padding: 3px 8px;
+                font-size: 12px;
                 font-weight: 600;
-                color: #1e3a8a;
+                color: #6d28d9;
             }
             QToolButton:hover {
-                background: #dbeafe;
+                background: #ede9fe;
             }
             QToolButton:pressed {
-                background: #bfdbfe;
+                background: #ddd6fe;
             }
             """
         )
@@ -108,11 +109,12 @@ class MainUI(QMainWindow):
 
     def _create_toolbar_button(self, emoji: str, label: str, action: QAction) -> QToolButton:
         button = QToolButton(self)
-        button.setText(f"{emoji}\n{label}")
+        button.setText(f"{emoji} {label}")
         button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
         button.setAutoRaise(False)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
-        button.setMinimumSize(92, 60)
+        button.setMinimumSize(88, 35)
+        button.setMaximumHeight(35)
         button.clicked.connect(action.trigger)
         return button
 
@@ -127,13 +129,14 @@ class MainUI(QMainWindow):
 
         if is_vertical:
             self.toolbar_spacer.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
-            button_size = QSize(84, 72)
+            button_size = QSize(88, 35)
         else:
             self.toolbar_spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-            button_size = QSize(92, 60)
+            button_size = QSize(88, 35)
 
         for button in (self.setting_button, self.buddycare_button):
             button.setMinimumSize(button_size)
+            button.setMaximumHeight(button_size.height())
 
     def _position_initial_window(self) -> None:
         screen = self.screen() or QGuiApplication.primaryScreen()

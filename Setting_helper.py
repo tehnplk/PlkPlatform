@@ -3,11 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from dotenv import dotenv_values
-
-try:
-    from PyQt6.QtCore import QSettings
-except ImportError:  # pragma: no cover
-    from PyQt5.QtCore import QSettings
+from PyQt6.QtCore import QSettings
 
 SETTINGS_NAME = "PlkPlatformSetting"
 SETTINGS_APP = "PlkPlatformSetting"

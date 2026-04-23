@@ -67,17 +67,21 @@ class BuddyCareExcelUI(QMainWindow):
 
         self.btn_choose = QPushButton("เลือกไฟล์ Excel")
         self.btn_choose.clicked.connect(self.choose_excel_file)
-        self.btn_choose.setMinimumHeight(40)
+        self.btn_choose.setMinimumHeight(35)
+        self.btn_choose.setMaximumHeight(35)
 
         self.btn_lookup = QPushButton("ค้นใน HOS")
         self.btn_lookup.clicked.connect(self.lookup_cid)
-        self.btn_lookup.setMinimumHeight(40)
+        self.btn_lookup.setMinimumHeight(35)
+        self.btn_lookup.setMaximumHeight(35)
         self.btn_lookup.setEnabled(False)
 
         self.status_label.setStyleSheet("font-size: 14px; color: #e2e8f0; font-weight: 700;")
         self.date_label.setStyleSheet("font-size: 14px; color: #e2e8f0; font-weight: 700;")
-        self.date_filter.setMinimumHeight(38)
-        self.status_filter.setMinimumHeight(38)
+        self.date_filter.setMinimumHeight(35)
+        self.date_filter.setMaximumHeight(35)
+        self.status_filter.setMinimumHeight(35)
+        self.status_filter.setMaximumHeight(35)
 
         self.select_all_checkbox = QCheckBox("เลือกทั้งหมด")
         self.select_all_checkbox.setTristate(False)
@@ -108,6 +112,7 @@ class BuddyCareExcelUI(QMainWindow):
         self.progress_bar.setValue(0)
         self.progress_bar.setVisible(False)
         self.progress_bar.setFixedWidth(220)
+        self.progress_bar.setFixedHeight(24)
 
         toolbar = QToolBar("Main Toolbar", self)
         toolbar.setMovable(False)
@@ -186,9 +191,10 @@ class BuddyCareExcelUI(QMainWindow):
             }
             QToolBar {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #0f172a, stop:1 #1e3a8a);
-                border: none;
-                padding: 10px 12px;
+                    stop:0 #dbeafe, stop:1 #bfdbfe);
+                border: 1px solid #93c5fd;
+                border-radius: 12px;
+                padding: 4px 12px;
             }
             QLabel {
                 color: #0f172a;

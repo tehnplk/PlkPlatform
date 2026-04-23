@@ -18,6 +18,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from version import RELEASE, VERSION
+
 
 class WindowTitleBar(QWidget):
     def __init__(self, parent: QMainWindow) -> None:
@@ -72,6 +74,11 @@ class MainUI(QMainWindow):
         self.statusBar().setObjectName("main_statusbar")
         self.statusBar().setSizeGripEnabled(False)
         self.statusBar().showMessage("พร้อมใช้งาน")
+        self._version_label = QLabel(f"Version {VERSION}  •  Release {RELEASE}")
+        self._version_label.setStyleSheet(
+            "color: #1f5c3f; font-weight: 700; padding: 0 10px;"
+        )
+        self.statusBar().addPermanentWidget(self._version_label)
         self._update_maximize_button()
 
     def showEvent(self, event: QShowEvent) -> None:

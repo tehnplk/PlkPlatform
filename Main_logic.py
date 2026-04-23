@@ -8,6 +8,7 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from BuddyCareExcel_logic import BuddyCareExcelWindow
+from DataCenter_logic import DataCenterWindow
 from HisSetting_dlg import DlgHisSetting
 from Main_ui import MainUI
 
@@ -21,6 +22,7 @@ class MainWindow(MainUI):
     def __init__(self) -> None:
         super().__init__()
         self._buddycare_subwindow = None
+        self._datacenter_subwindow = None
 
     def open_buddycare_excel(self) -> None:
         if self._buddycare_subwindow is not None:
@@ -52,7 +54,24 @@ class MainWindow(MainUI):
         self._show_pending_module("Authen")
 
     def open_central_data_module(self) -> None:
-        self._show_pending_module("ศูนย์ข้อมูลกลาง")
+        if self._datacenter_subwindow is not None:
+            self.mdi_area.setActiveSubWindow(self._datacenter_subwindow)
+            self._datacenter_subwindow.widget().show()
+            self._datacenter_subwindow.showMaximized()
+            return
+
+        datacenter_widget = DataCenterWindow()
+        subwindow = self.mdi_area.addSubWindow(datacenter_widget)
+        subwindow.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        subwindow.setWindowTitle("ศูนย์ข้อมูลกลาง")
+        subwindow.destroyed.connect(self._clear_datacenter_reference)
+        datacenter_widget.show()
+        subwindow.showMaximized()
+        self._datacenter_subwindow = subwindow
+        self.statusBar().showMessage("เปิดศูนย์ข้อมูลกลางแล้ว", 3000)
+
+    def _clear_datacenter_reference(self) -> None:
+        self._datacenter_subwindow = None
 
     def open_ai_assistant_module(self) -> None:
         self._show_pending_module("AI Assistant")

@@ -323,6 +323,7 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
         staff = data.get('staff') or 'sa'
         dep = data.get('dep') or '014'
         spclty = data.get('spclty') or '01'
+        ovstist = str(data.get('ovstist') or '05').strip() or '05'
         visit_date = data.get('visit_date') or date.today().isoformat()
         visit_time = data.get('visit_time') or datetime.now().strftime('%H:%M:%S')
         dx_code = str(data.get('dx_code') or 'Z718').strip().upper()
@@ -412,7 +413,7 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
                       set @staff = '{staff}';
                       set @dep = '{dep}';
                       set @spclty = '{spclty}';
-                      set @ovstlist = '05';
+                      set @ovstlist = '{ovstist}';
                       set @ovstost = '99';
                       set @visit_type = ( SELECT IF((@visit_time >= '16:30:00') OR (@visit_time <= '08:30:00') or (@visit_date in (SELECT holiday_date from holiday)),'O','I') );
                       set @lastvisit = 0;

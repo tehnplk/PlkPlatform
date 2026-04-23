@@ -90,7 +90,7 @@ class BuddyCareExcelUI(QMainWindow):
         self.vn_filter.setMinimumHeight(38)
         self.vn_filter.currentIndexChanged.connect(self.apply_filters)
 
-        self.btn_open_visit = QPushButton("เปิดVisit-Telemed")
+        self.btn_open_visit = QPushButton("เปิด Visit")
         self.btn_open_visit.setMinimumHeight(40)
         self.btn_open_visit.setEnabled(False)
         self.btn_open_visit.clicked.connect(self.on_open_visit_clicked)

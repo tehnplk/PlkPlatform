@@ -254,12 +254,36 @@ def load_doctor_options(cursor) -> list[tuple[str, str]]:
     ]
 
 
+def load_ovstist_options(cursor) -> list[tuple[str, str]]:
+    sql = (
+        "SELECT ovstist, name "
+        "FROM ovstist "
+        "WHERE TRIM(ovstist) <> '' "
+        "ORDER BY ovstist"
+    )
+    cursor.execute(sql)
+    rows = cursor.fetchall() or []
+    return [
+        (str(row.get("ovstist", "") or "").strip(), str(row.get("name", "") or "").strip())
+        for row in rows
+        if str(row.get("ovstist", "") or "").strip()
+    ]
+
+
 class DxDoctorDialog(QDialog):
-    def __init__(self, dx_code: str, doctor_options: list[tuple[str, str]], default_doctor_code: str, parent=None) -> None:
+    def __init__(
+        self,
+        dx_code: str,
+        doctor_options: list[tuple[str, str]],
+        ovstist_options: list[tuple[str, str]],
+        default_doctor_code: str,
+        default_ovstist: str,
+        parent=None,
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle("ระบุรหัสวินิจฉัย")
         self.setModal(True)
-        self.resize(420, 140)
+        self.resize(460, 180)
 
         self.dx_input = QLineEdit(dx_code)
         self.dx_input.setPlaceholderText("เช่น Z718")
@@ -274,9 +298,20 @@ class DxDoctorDialog(QDialog):
             if index >= 0:
                 self.doctor_combo.setCurrentIndex(index)
 
+        self.ovstist_combo = QComboBox()
+        for code, name in ovstist_options:
+            label = f"{code} - {name}" if name else code
+            self.ovstist_combo.addItem(label, code)
+
+        if default_ovstist:
+            index = self.ovstist_combo.findData(default_ovstist)
+            if index >= 0:
+                self.ovstist_combo.setCurrentIndex(index)
+
         form = QFormLayout()
         form.addRow("รหัสวินิจฉัย", self.dx_input)
         form.addRow("Doctor", self.doctor_combo)
+        form.addRow("ประเภทการมา", self.ovstist_combo)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
@@ -286,10 +321,11 @@ class DxDoctorDialog(QDialog):
         layout.addLayout(form)
         layout.addWidget(buttons)
 
-    def values(self) -> tuple[str, str]:
+    def values(self) -> tuple[str, str, str]:
         dx_code = self.dx_input.text().strip().upper()
         doctor_code = str(self.doctor_combo.currentData() or "").strip()
-        return dx_code, doctor_code
+        ovstist_code = str(self.ovstist_combo.currentData() or "").strip()
+        return dx_code, doctor_code, ovstist_code
 
 
 def get_person_detail_by_cid(cid: str) -> Optional[dict[str, Any]]:
@@ -527,7 +563,7 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
     def update_open_visit_button_state(self) -> None:
         if self.df is None or self.df.empty:
             self.btn_open_visit.setEnabled(False)
-            self.btn_open_visit.setText("เปิดVisit-Telemed")
+            self.btn_open_visit.setText("เปิด Visit")
             return
 
         selected_with_cid = self.df[
@@ -538,9 +574,9 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
         selected_count = len(selected_with_cid)
         self.btn_open_visit.setEnabled(selected_count > 0)
         if selected_count > 0:
-            self.btn_open_visit.setText(f"เปิดVisit-Telemed {selected_count} คน")
+            self.btn_open_visit.setText(f"เปิด Visit {selected_count} คน")
         else:
-            self.btn_open_visit.setText("เปิดVisit-Telemed")
+            self.btn_open_visit.setText("เปิด Visit")
 
     @staticmethod
     def has_text_value(value) -> bool:
@@ -791,13 +827,16 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
 
         dx_code = read_setting("LAST_DX_CODE", "Z718").strip().upper() or "Z718"
         default_doctor_code = read_setting("LAST_DOCTOR_CODE", "0010").strip() or "0010"
+        default_ovstist = read_setting("LAST_OVSTIST", "05").strip() or "05"
         icd_row = None
         selected_doctor_code = default_doctor_code
+        selected_ovstist = default_ovstist
         try:
             icd_conn = create_db_connection()
             icd_cursor = icd_conn.cursor()
             try:
                 doctor_options = load_doctor_options(icd_cursor)
+                ovstist_options = load_ovstist_options(icd_cursor)
             finally:
                 icd_cursor.close()
                 icd_conn.close()
@@ -810,18 +849,31 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
         if not doctor_options:
             QMessageBox.warning(self, "ไม่พบรายชื่อ Doctor", "ไม่พบข้อมูลในตาราง doctor")
             return
+        if not ovstist_options:
+            QMessageBox.warning(self, "ไม่พบข้อมูล ovstist", "ไม่พบข้อมูลในตาราง ovstist")
+            return
 
         while True:
-            dialog = DxDoctorDialog(dx_code, doctor_options, selected_doctor_code, self)
+            dialog = DxDoctorDialog(
+                dx_code,
+                doctor_options,
+                ovstist_options,
+                selected_doctor_code,
+                selected_ovstist,
+                self,
+            )
             if dialog.exec() != QDialog.DialogCode.Accepted:
                 return
 
-            dx_code, selected_doctor_code = dialog.values()
+            dx_code, selected_doctor_code, selected_ovstist = dialog.values()
             if not dx_code:
                 QMessageBox.warning(self, "ยังไม่ได้ระบุรหัสวินิจฉัย", "กรุณาระบุรหัสวินิจฉัยก่อน process open visit")
                 continue
             if not selected_doctor_code:
                 QMessageBox.warning(self, "ยังไม่ได้เลือก Doctor", "กรุณาเลือก Doctor ก่อน process open visit")
+                continue
+            if not selected_ovstist:
+                QMessageBox.warning(self, "ยังไม่ได้เลือก ovstist", "กรุณาเลือก ovstist ก่อน process open visit")
                 continue
 
             try:
@@ -887,6 +939,7 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
                 "dx_code": dx_code,
                 "main_pdx": main_pdx,
                 "doctor": selected_doctor_code,
+                "ovstist": selected_ovstist,
             }
 
             try:
@@ -932,6 +985,7 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
             save_settings({
                 "LAST_DX_CODE": dx_code,
                 "LAST_DOCTOR_CODE": selected_doctor_code,
+                "LAST_OVSTIST": selected_ovstist,
             })
 
         message_lines = [f"เปิด Visit สำเร็จ {success_count} รายการ"]

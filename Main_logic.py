@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from BuddyCareExcel_logic import BuddyCareExcelWindow
 from HisSetting_dlg import DlgHisSetting
 from Main_ui import MainUI
+
+
+def resolve_app_path(relative_path: str) -> Path:
+    base_path = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    return base_path / relative_path
 
 
 class MainWindow(MainUI):
@@ -67,7 +74,12 @@ class MainWindow(MainUI):
 
 def main() -> None:
     app = QApplication(sys.argv)
+    icon_path = resolve_app_path("icon.ico")
+    if icon_path.exists():
+        app.setWindowIcon(QIcon(str(icon_path)))
     window = MainWindow()
+    if icon_path.exists():
+        window.setWindowIcon(QIcon(str(icon_path)))
     window.show()
     QTimer.singleShot(0, window.showMaximized)
     sys.exit(app.exec())

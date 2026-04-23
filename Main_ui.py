@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 from PyQt6.QtCore import QEvent, QSize, Qt, QTimer
-from PyQt6.QtGui import QAction, QColor, QGuiApplication, QMouseEvent, QShowEvent
+from PyQt6.QtGui import QAction, QColor, QGuiApplication, QMouseEvent, QPixmap, QShowEvent
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -105,6 +108,10 @@ class MainUI(QMainWindow):
                 font-size: 15px;
                 font-weight: 700;
                 padding: 0 10px;
+            }
+            QLabel#window_icon {
+                background: transparent;
+                padding: 0;
             }
             QWidget#menu_strip {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
@@ -223,10 +230,28 @@ class MainUI(QMainWindow):
         title_layout.setContentsMargins(12, 4, 10, 4)
         title_layout.setSpacing(8)
 
+        self.window_icon_label = QLabel(self.title_bar)
+        self.window_icon_label.setObjectName("window_icon")
+        self.window_icon_label.setFixedSize(24, 24)
+        self.window_icon_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        icon_path = self._resolve_app_path("icon.png")
+        if icon_path.exists():
+            pixmap = QPixmap(str(icon_path))
+            if not pixmap.isNull():
+                self.window_icon_label.setPixmap(
+                    pixmap.scaled(
+                        24,
+                        24,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
+                )
+
         self.window_title_label = QLabel(self.windowTitle(), self.title_bar)
         self.window_title_label.setObjectName("window_title")
         self.window_title_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
+        title_layout.addWidget(self.window_icon_label)
         title_layout.addWidget(self.window_title_label)
         title_layout.addStretch(1)
 
@@ -268,6 +293,11 @@ class MainUI(QMainWindow):
 
         self.setMenuWidget(top_widget)
         self.windowTitleChanged.connect(self.window_title_label.setText)
+
+    @staticmethod
+    def _resolve_app_path(relative_path: str) -> Path:
+        base_path = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+        return base_path / relative_path
 
     def _build_toolbar(self) -> None:
         self.main_toolbar = QToolBar("Main Toolbar", self)

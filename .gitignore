@@ -1,2 +1,11 @@
 /__pycache__
 /sql
+/test-data
+/build
+/dist
+
+# Patient-data exports / logs
+/visit_err.txt
+/sql_vst_hos*.txt
+/sql_test_open_visit_*.txt
+/del_visit.sql

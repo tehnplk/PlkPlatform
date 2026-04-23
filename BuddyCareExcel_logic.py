@@ -10,9 +10,10 @@ import pandas as pd
 import pymysql
 import pymysql.cursors
 from dotenv import load_dotenv
-from PyQt6.QtCore import QObject, Qt, QThread, pyqtSignal
+from PyQt6.QtCore import QLocale, QObject, Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QStandardItem
 from PyQt6.QtWidgets import (
+    QApplication,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -20,6 +21,7 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QLineEdit,
     QMessageBox,
+    QProgressDialog,
     QVBoxLayout,
 )
 
@@ -92,6 +94,7 @@ def load_excel_for_lookup(path: str) -> pd.DataFrame:
                 "ชื่อ": fname or "",
                 "นามสกุล": lname or "",
                 "สถานะ": row.get("สถานะ", ""),
+                "Reason": row.get("เหตุผลในการนัดหมาย", ""),
                 "cid": "",
             }
         )
@@ -372,6 +375,39 @@ class BuddyCareExcelWorker(QObject):
 
 
 class BuddyCareExcelWindow(BuddyCareExcelUI):
+    def show_progress_splash(self, title: str, message: str, maximum: int) -> None:
+        self.close_progress_splash()
+        self.progress_splash = QProgressDialog(message, None, 0, max(maximum, 0), self)
+        self.progress_splash.setWindowTitle(title)
+        self.progress_splash.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self.progress_splash.setCancelButton(None)
+        self.progress_splash.setAutoClose(False)
+        self.progress_splash.setAutoReset(False)
+        self.progress_splash.setMinimumDuration(0)
+        self.progress_splash.setValue(0)
+        self.progress_splash.setMinimumWidth(420)
+        self.progress_splash.setLocale(QLocale.c())
+        self.progress_splash.show()
+        QApplication.processEvents()
+
+    def update_progress_splash(self, value: int, message: str | None = None) -> None:
+        splash = getattr(self, "progress_splash", None)
+        if splash is None:
+            return
+        if message:
+            splash.setLabelText(message)
+        splash.setValue(value)
+        QApplication.processEvents()
+
+    def close_progress_splash(self) -> None:
+        splash = getattr(self, "progress_splash", None)
+        if splash is None:
+            return
+        splash.close()
+        splash.deleteLater()
+        self.progress_splash = None
+        QApplication.processEvents()
+
     def choose_excel_file(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self,
@@ -397,9 +433,9 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
 
         self.file_label.setText(f"ไฟล์: {path} | จำนวนรายการ: {len(self.df)}")
         self.lookup_result_label.clear()
-        self.btn_lookup.setEnabled(len(self.df) > 0)
         self.reset_filters()
         self.apply_filters()
+        self.lookup_cid()
 
     def lookup_cid(self) -> None:
         if self.df is None or self.df.empty:
@@ -409,13 +445,13 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
         if self.lookup_thread is not None and self.lookup_thread.isRunning():
             return
 
-        self.btn_lookup.setEnabled(False)
         self.btn_choose.setEnabled(False)
         self.date_filter.setEnabled(False)
         self.status_filter.setEnabled(False)
         self.lookup_result_label.setText("กำลังค้นใน HOS...")
         self.progress_bar.setValue(0)
         self.progress_bar.setVisible(True)
+        self.show_progress_splash("กำลังทำงาน", "กำลังค้นข้อมูลใน HOS...", 100)
 
         self.lookup_thread = QThread(self)
         self.lookup_worker = BuddyCareExcelWorker(self.df)
@@ -423,6 +459,9 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
 
         self.lookup_thread.started.connect(self.lookup_worker.run)
         self.lookup_worker.progress_changed.connect(self.progress_bar.setValue)
+        self.lookup_worker.progress_changed.connect(
+            lambda value: self.update_progress_splash(value, f"กำลังค้นข้อมูลใน HOS... {value}%")
+        )
         self.lookup_worker.finished.connect(self.on_lookup_finished)
         self.lookup_worker.failed.connect(self.on_lookup_failed)
 
@@ -463,8 +502,8 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
 
     def on_lookup_thread_finished(self) -> None:
         self.progress_bar.setVisible(False)
+        self.close_progress_splash()
         self.btn_choose.setEnabled(True)
-        self.btn_lookup.setEnabled(self.df is not None and not self.df.empty)
         self.date_filter.setEnabled(self.df is not None and not self.df.empty)
         self.status_filter.setEnabled(self.df is not None and not self.df.empty)
         self.update_open_visit_button_state()
@@ -488,7 +527,7 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
     def update_open_visit_button_state(self) -> None:
         if self.df is None or self.df.empty:
             self.btn_open_visit.setEnabled(False)
-            self.btn_open_visit.setText("เปิด-Visit")
+            self.btn_open_visit.setText("เปิดVisit-Telemed")
             return
 
         selected_with_cid = self.df[
@@ -499,9 +538,9 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
         selected_count = len(selected_with_cid)
         self.btn_open_visit.setEnabled(selected_count > 0)
         if selected_count > 0:
-            self.btn_open_visit.setText(f"เปิด Visit {selected_count} คน")
+            self.btn_open_visit.setText(f"เปิดVisit-Telemed {selected_count} คน")
         else:
-            self.btn_open_visit.setText("เปิด-Visit")
+            self.btn_open_visit.setText("เปิดVisit-Telemed")
 
     @staticmethod
     def has_text_value(value) -> bool:
@@ -630,6 +669,7 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
                 row.get("ชื่อ", ""),
                 row.get("นามสกุล", ""),
                 row.get("สถานะ", ""),
+                row.get("Reason", ""),
                 row.get("cid", ""),
                 row.get("VN", ""),
                 row.get("VST_TYPE", ""),
@@ -640,7 +680,10 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
                 text = "" if pd.isna(value) else str(value)
                 item = QStandardItem(text)
                 item.setEditable(False)
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                if column_index == self.reason_column_index:
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                else:
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 item.setData(df_index, self.row_index_role)
                 if column_index == 2:
                     sort_value = self.build_sortable_date(text, dayfirst=True)
@@ -820,12 +863,22 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
 
         success_count = 0
         error_messages: list[str] = []
+        total_selected = len(selected_df)
+        self.show_progress_splash("กำลังเปิด Visit", f"กำลังเปิด Visit 0/{total_selected}", total_selected)
 
-        for idx, row in selected_df.iterrows():
+        for processed_count, (idx, row) in enumerate(selected_df.iterrows(), start=1):
             cid = str(row.get("cid", "") or "").strip()
             visit_date = to_mysql_date(row.get("วันที่ xls", ""))
+            self.update_progress_splash(
+                processed_count - 1,
+                f"กำลังเปิด Visit {processed_count}/{total_selected}\nCID: {cid or '-'}",
+            )
             if not cid or not visit_date:
                 error_messages.append(f"แถว {idx + 1}: ข้อมูล CID หรือวันที่ไม่ถูกต้อง")
+                self.update_progress_splash(
+                    processed_count,
+                    f"กำลังเปิด Visit {processed_count}/{total_selected}\nCID: {cid or '-'}",
+                )
                 continue
 
             payload = {
@@ -840,6 +893,10 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
                 vn = his.openVisitHosxp(payload)
                 if not vn:
                     error_messages.append(f"CID {cid}: เปิด Visit ไม่สำเร็จ")
+                    self.update_progress_splash(
+                        processed_count,
+                        f"กำลังเปิด Visit {processed_count}/{total_selected}\nCID: {cid or '-'}",
+                    )
                     continue
 
                 lookup_conn = create_db_connection()
@@ -863,6 +920,12 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
                 traceback.print_exc()
                 error_messages.append(f"CID {cid}: {exc}")
 
+            self.update_progress_splash(
+                processed_count,
+                f"กำลังเปิด Visit {processed_count}/{total_selected}\nCID: {cid or '-'}",
+            )
+
+        self.close_progress_splash()
         self.apply_filters()
 
         if success_count > 0:

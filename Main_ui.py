@@ -33,6 +33,10 @@ class WindowTitleBar(QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             parent_window = self.window()
             if isinstance(parent_window, QMainWindow):
+                if hasattr(parent_window, "_toggle_maximize_restore"):
+                    parent_window._toggle_maximize_restore()
+                    event.accept()
+                    return
                 if parent_window.isMaximized():
                     parent_window.showNormal()
                 else:
@@ -49,6 +53,7 @@ class MainUI(QMainWindow):
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
         self.resize(1100, 680)
         self._has_positioned_on_show = False
+        self._normal_geometry = self.geometry()
 
         self._apply_main_theme()
 
@@ -225,7 +230,7 @@ class MainUI(QMainWindow):
         title_layout.addWidget(self.window_title_label)
         title_layout.addStretch(1)
 
-        self.minimize_button = self._create_window_control("_", self.showMinimized)
+        self.minimize_button = self._create_window_control("_", self._show_window_minimized)
         self.maximize_button = self._create_window_control("□", self._toggle_maximize_restore)
         self.close_button = self._create_window_control("X", self.close)
         self.close_button.setObjectName("close_button")
@@ -328,11 +333,36 @@ class MainUI(QMainWindow):
         button.clicked.connect(handler)
         return button
 
+    def _capture_normal_geometry(self) -> None:
+        if not self.isMaximized() and not self.isMinimized():
+            self._normal_geometry = self.geometry()
+
+    def _show_window_minimized(self) -> None:
+        self._capture_normal_geometry()
+        self.setWindowState(self.windowState() | Qt.WindowState.WindowMinimized)
+
+    def _show_window_maximized(self) -> None:
+        self._capture_normal_geometry()
+        self.setWindowState(
+            (self.windowState() & ~Qt.WindowState.WindowMinimized) | Qt.WindowState.WindowMaximized
+        )
+        self.show()
+
+    def _show_window_normal(self) -> None:
+        self.setWindowState(
+            self.windowState()
+            & ~Qt.WindowState.WindowMaximized
+            & ~Qt.WindowState.WindowMinimized
+        )
+        self.showNormal()
+        if self._normal_geometry.isValid():
+            self.setGeometry(self._normal_geometry)
+
     def _toggle_maximize_restore(self) -> None:
         if self.isMaximized():
-            self.showNormal()
+            self._show_window_normal()
         else:
-            self.showMaximized()
+            self._show_window_maximized()
         self._update_maximize_button()
 
     def _update_maximize_button(self) -> None:

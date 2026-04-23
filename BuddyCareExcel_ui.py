@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Optional
 
 import pandas as pd
-from PyQt6.QtCore import QObject, QSize, Qt, QThread
+from PyQt6.QtCore import QLocale, QObject, QSize, Qt, QThread
 from PyQt6.QtGui import QStandardItemModel
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -22,8 +22,9 @@ from PyQt6.QtWidgets import (
 
 
 class BuddyCareExcelUI(QMainWindow):
-    headers = ["ลำดับ", "เลือก", "วันที่ xls", "วันที่ hos", "คำนำหน้า", "ชื่อ", "นามสกุล", "สถานะ", "CID", "VN", "VST_TYPE"]
+    headers = ["ลำดับ", "เลือก", "วันที่ xls", "วันที่ hos", "คำนำหน้า", "ชื่อ", "นามสกุล", "สถานะ", "Reason", "CID", "VN", "VST_TYPE"]
     select_column_index = headers.index("เลือก")
+    reason_column_index = headers.index("Reason")
     cid_column_index = headers.index("CID")
     default_done_status = "เข้าเยี่ยมเสร็จสิ้น"
     sort_role = Qt.ItemDataRole.UserRole + 1
@@ -70,14 +71,9 @@ class BuddyCareExcelUI(QMainWindow):
         self.btn_choose.setMinimumHeight(35)
         self.btn_choose.setMaximumHeight(35)
 
-        self.btn_lookup = QPushButton("ค้นใน HOS")
-        self.btn_lookup.clicked.connect(self.lookup_cid)
-        self.btn_lookup.setMinimumHeight(35)
-        self.btn_lookup.setMaximumHeight(35)
-        self.btn_lookup.setEnabled(False)
-
-        self.status_label.setStyleSheet("font-size: 14px; color: #e2e8f0; font-weight: 700;")
-        self.date_label.setStyleSheet("font-size: 14px; color: #e2e8f0; font-weight: 700;")
+        toolbar_label_style = "font-size: 14px; color: #1e3a8a; font-weight: 800; padding: 0 4px;"
+        self.status_label.setStyleSheet(toolbar_label_style)
+        self.date_label.setStyleSheet(toolbar_label_style)
         self.date_filter.setMinimumHeight(35)
         self.date_filter.setMaximumHeight(35)
         self.status_filter.setMinimumHeight(35)
@@ -94,7 +90,7 @@ class BuddyCareExcelUI(QMainWindow):
         self.vn_filter.setMinimumHeight(38)
         self.vn_filter.currentIndexChanged.connect(self.apply_filters)
 
-        self.btn_open_visit = QPushButton("เปิด-Visit")
+        self.btn_open_visit = QPushButton("เปิดVisit-Telemed")
         self.btn_open_visit.setMinimumHeight(40)
         self.btn_open_visit.setEnabled(False)
         self.btn_open_visit.clicked.connect(self.on_open_visit_clicked)
@@ -113,6 +109,7 @@ class BuddyCareExcelUI(QMainWindow):
         self.progress_bar.setVisible(False)
         self.progress_bar.setFixedWidth(220)
         self.progress_bar.setFixedHeight(24)
+        self.progress_bar.setLocale(QLocale.c())
 
         toolbar = QToolBar("Main Toolbar", self)
         toolbar.setMovable(False)
@@ -120,7 +117,6 @@ class BuddyCareExcelUI(QMainWindow):
         toolbar.setStyleSheet("QToolBar { spacing: 10px; }")
         self.addToolBar(toolbar)
         toolbar.addWidget(self.btn_choose)
-        toolbar.addWidget(self.btn_lookup)
         toolbar.addSeparator()
         toolbar.addWidget(self.date_label)
         toolbar.addWidget(self.date_filter)
@@ -131,10 +127,6 @@ class BuddyCareExcelUI(QMainWindow):
         toolbar.addWidget(self.progress_bar)
 
         toolbar_widget = toolbar.widgetForAction(toolbar.actions()[0])
-        if toolbar_widget is not None:
-            toolbar_widget.setStyleSheet("font-size: 14px;")
-
-        toolbar_widget = toolbar.widgetForAction(toolbar.actions()[1])
         if toolbar_widget is not None:
             toolbar_widget.setStyleSheet("font-size: 14px;")
 
@@ -150,6 +142,7 @@ class BuddyCareExcelUI(QMainWindow):
         self.table.doubleClicked.connect(self.on_table_double_click)
         self.table.setColumnWidth(0, 60)
         self.table.setColumnWidth(1, 52)
+        self.table.setColumnWidth(self.reason_column_index, 360)
 
         container = QWidget()
         layout = QVBoxLayout(container)

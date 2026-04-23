@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 
 from PyQt6.QtCore import QPoint, QSize, Qt
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from BuddyCareExcel_logic import BuddyCareExcelWindow
 from HisSetting_dlg import DlgHisSetting
@@ -55,6 +55,30 @@ class MainWindow(MainUI):
         dialog = DlgHisSetting(self)
         if dialog.exec():
             self.statusBar().showMessage("บันทึกการตั้งค่า HIS แล้ว", 3000)
+
+
+    def open_authen_module(self) -> None:
+        self._show_pending_module("Authen")
+
+    def open_central_data_module(self) -> None:
+        self._show_pending_module("ศูนย์ข้อมูลกลาง")
+
+    def open_ai_assistant_module(self) -> None:
+        self._show_pending_module("AI Assistant")
+
+    def open_data_quality_module(self) -> None:
+        self._show_pending_module("คุณภาพข้อมูล")
+
+    def open_revenue_storage_module(self) -> None:
+        self._show_pending_module("จัดเก็บรายได้")
+
+    def _show_pending_module(self, module_name: str) -> None:
+        self.statusBar().showMessage(f"เปิดโมดูล {module_name}", 3000)
+        QMessageBox.information(
+            self,
+            module_name,
+            f"โมดูล {module_name} พร้อมสำหรับเชื่อมต่อหน้าจอถัดไป",
+        )
 
 
 def main() -> None:

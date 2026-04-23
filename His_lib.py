@@ -589,6 +589,7 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
                 break
             finally:
                 cur.close()
+        time.sleep(0.1)
         return result
 
     def updateHosxpOvstKey(self, vn, ovst_key):

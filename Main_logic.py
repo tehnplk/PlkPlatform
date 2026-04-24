@@ -12,6 +12,7 @@ from BuddyCareExcel_logic import BuddyCareExcelWindow
 from DataCenter_logic import DataCenterWindow
 from HisSetting_dlg import DlgHisSetting
 from Main_ui import MainUI
+from TelemedDaily_ui import TelemedDailyWindow
 
 
 def resolve_app_path(relative_path: str) -> Path:
@@ -24,6 +25,7 @@ class MainWindow(MainUI):
         super().__init__()
         self._buddycare_subwindow = None
         self._datacenter_subwindow = None
+        self._telemed_daily_subwindow = None
         self._update_message_box = None
         self._auto_update = AutoUpdateController(parent=self)
         self._auto_update.update_ready.connect(self._apply_downloaded_update)
@@ -86,6 +88,26 @@ class MainWindow(MainUI):
 
     def open_revenue_storage_module(self) -> None:
         self._show_pending_module("จัดเก็บรายได้")
+
+    def open_telemed_daily_module(self) -> None:
+        if self._telemed_daily_subwindow is not None:
+            self.mdi_area.setActiveSubWindow(self._telemed_daily_subwindow)
+            self._telemed_daily_subwindow.widget().show()
+            self._telemed_daily_subwindow.showMaximized()
+            return
+
+        telemed_widget = TelemedDailyWindow()
+        subwindow = self.mdi_area.addSubWindow(telemed_widget)
+        subwindow.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        subwindow.setWindowTitle("อัพเดทTelemed Daily")
+        subwindow.destroyed.connect(self._clear_telemed_daily_reference)
+        telemed_widget.show()
+        subwindow.showMaximized()
+        self._telemed_daily_subwindow = subwindow
+        self.statusBar().showMessage("เปิดอัพเดทTelemed Daily แล้ว", 3000)
+
+    def _clear_telemed_daily_reference(self) -> None:
+        self._telemed_daily_subwindow = None
 
     def _show_pending_module(self, module_name: str) -> None:
         self.statusBar().showMessage(f"เปิดโมดูล {module_name}", 3000)

@@ -1,9 +1,13 @@
 import os
 
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 RELEASE = "2026-04-24"
 
 # Endpoint must return JSON:
 # {"version":"0.1.1","url":"https://.../PlkPlatform.exe","sha256":"optional"}
-UPDATE_MANIFEST_URL = os.environ.get("PLK_UPDATE_MANIFEST_URL", "").strip()
+DEFAULT_UPDATE_MANIFEST_URL = "https://platform.plkhealth.go.th/plkplatform/latest.json"
+UPDATE_MANIFEST_URL = (
+    os.environ.get("PLK_UPDATE_MANIFEST_URL", "").strip()
+    or DEFAULT_UPDATE_MANIFEST_URL
+)

@@ -3,19 +3,30 @@
 Plk Platform checks for updates after startup when running as a PyInstaller executable.
 Development runs through `uv run start.py` skip update installation unless `PLK_UPDATE_ALLOW_DEV=1`.
 
+## Host
+- ssh adminplk@61.19.112.242 -pw Plkhe@lth00051 -p 2233
+- path /var/www/wwwroot/platform.plkhealth.go.th
+
+## Base Url
+- https://platform.plkhealth.go.th/
+- local port =  3011
+
+## Tool to Upload file
+ - pscp
+
 ## Configure Endpoint
 
 Set either:
 
 ```powershell
-$env:PLK_UPDATE_MANIFEST_URL = "https://example.com/plkplatform/latest.json"
+$env:PLK_UPDATE_MANIFEST_URL = "https://platform.plkhealth.go.th/plkplatform/latest.json"
 ```
 
 or place `update_config.json` next to `PlkPlatform.exe`:
 
 ```json
 {
-  "manifest_url": "https://example.com/plkplatform/latest.json"
+  "manifest_url": "https://platform.plkhealth.go.th/plkplatform/latest.json"
 }
 ```
 
@@ -26,7 +37,7 @@ The endpoint must return JSON:
 ```json
 {
   "version": "0.1.1",
-  "url": "https://example.com/plkplatform/PlkPlatform.exe",
+  "url": "https://platform.plkhealth.go.th/plkplatform/PlkPlatform.exe",
   "sha256": "optional lowercase sha256",
   "release_date": "2026-04-24",
   "notes": "optional release notes"

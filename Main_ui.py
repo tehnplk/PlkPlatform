@@ -218,6 +218,10 @@ class MainUI(QMainWindow):
         self.revenue_storage_action.setStatusTip("เปิดโมดูลจัดเก็บรายได้")
         self.revenue_storage_action.triggered.connect(self.open_revenue_storage_module)
 
+        self.telemed_daily_action = QAction("อัพเดทTelemed Daily", self)
+        self.telemed_daily_action.setStatusTip("เปิดโมดูลอัพเดทTelemed Daily")
+        self.telemed_daily_action.triggered.connect(self.open_telemed_daily_module)
+
         self.exit_action = QAction("Exit", self)
         self.exit_action.setStatusTip("ปิดโปรแกรม")
         self.exit_action.triggered.connect(self.close)
@@ -290,6 +294,7 @@ class MainUI(QMainWindow):
         modules_menu.addAction(self.ai_assistant_action)
         modules_menu.addAction(self.data_quality_action)
         modules_menu.addAction(self.revenue_storage_action)
+        modules_menu.addAction(self.telemed_daily_action)
 
         menu_layout.addWidget(self._create_menu_button("File", file_menu))
         menu_layout.addWidget(self._create_menu_button("Modules", modules_menu))

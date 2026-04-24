@@ -78,6 +78,11 @@ class His2(QObject):
             self.reconnect()
         return self.his_is_connect
 
+    def get_cursor(self, dict_cursor=False):
+        if not self.ensure_connection():
+            return None
+        return self.conn.cursor(pymysql.cursors.DictCursor) if dict_cursor else self.conn.cursor()
+
     def execute_with_retry(self, sql, dict_cursor=False, commit=False, max_retries=1):
         for attempt in range(max_retries + 1):
             if not self.ensure_connection():

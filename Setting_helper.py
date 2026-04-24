@@ -17,6 +17,7 @@ def load_env_defaults(base_path: Path | None = None) -> dict[str, str]:
     env_path = (base_path or Path(__file__).resolve().parent) / ".env"
     env_values = dotenv_values(env_path) if env_path.exists() else {}
     return {
+        "DB_TYPE": str(env_values.get("DB_TYPE", "mysql") or "mysql"),
         "DB_HOST": str(env_values.get("DB_HOST", "") or ""),
         "DB_PORT": str(env_values.get("DB_PORT", "3306") or "3306"),
         "DB_USER": str(env_values.get("DB_USER", "") or ""),
@@ -36,9 +37,12 @@ def read_setting(key: str, default: str = "", base_path: Path | None = None) -> 
 
 
 def load_db_settings(base_path: Path | None = None) -> dict[str, str | int]:
+    db_type = read_setting("DB_TYPE", "mysql", base_path=base_path).lower()
+    default_port = "5432" if db_type in ("postgres", "postgresql", "pg") else "3306"
     return {
+        "db_type": db_type,
         "host": read_setting("DB_HOST", base_path=base_path),
-        "port": int(read_setting("DB_PORT", "3306", base_path=base_path)),
+        "port": int(read_setting("DB_PORT", default_port, base_path=base_path)),
         "user": read_setting("DB_USER", base_path=base_path),
         "password": read_setting("DB_PASSWORD", base_path=base_path),
         "database": read_setting("DB_NAME", base_path=base_path),

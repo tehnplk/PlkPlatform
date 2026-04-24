@@ -97,6 +97,15 @@ class His2Pg(QObject):
             self.reconnect()
         return self.his_is_connect
 
+    def get_cursor(self, dict_cursor: bool = False):
+        if not self.ensure_connection():
+            return None
+        return (
+            self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            if dict_cursor
+            else self.conn.cursor()
+        )
+
     def execute_with_retry(
         self,
         sql: str,

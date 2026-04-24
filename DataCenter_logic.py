@@ -11,8 +11,6 @@ from typing import Any, List
 from urllib import error as urlerror
 from urllib import request as urlrequest
 
-import pymysql
-import pymysql.cursors
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QStandardItem
 from PyQt6.QtWidgets import (
@@ -25,9 +23,11 @@ from PyQt6.QtWidgets import (
 )
 
 from DataCenter_ui import DataCenterUI
-from Setting_helper import get_settings, load_db_settings
+from Setting_helper import get_settings, read_setting
+from His_factory import make_his
 
-SQL_FILE = "mysql_visit_type_count.sql"
+MYSQL_SQL_FILE = "mysql_visit_type_count.sql"
+POSTGRES_SQL_FILE = "postgres_visit_type_count.sql"
 API_URL = "https://dashboard.plkhealth.go.th/telemedicine/api/visit-type-daily"
 LAST_SENT_KEY_PREFIX = "DataCenter/LastSentAt/"
 
@@ -65,27 +65,26 @@ def _resolve_app_path(relative_path: str) -> Path:
 
 
 def _load_sql() -> str:
-    sql_path = _resolve_app_path(SQL_FILE)
+    db_type = (read_setting("DB_TYPE", "mysql") or "mysql").strip().lower()
+    sql_file = POSTGRES_SQL_FILE if db_type in ("postgres", "postgresql", "pg") else MYSQL_SQL_FILE
+    sql_path = _resolve_app_path(sql_file)
     return sql_path.read_text(encoding="utf-8")
 
 
 def _fetch_visit_type_rows() -> List[dict]:
-    db = load_db_settings()
-    conn = pymysql.connect(
-        host=str(db["host"]),
-        port=int(db["port"]),
-        user=str(db["user"]),
-        password=str(db["password"]),
-        database=str(db["database"]),
-        charset=str(db["charset"]),
-        cursorclass=pymysql.cursors.DictCursor,
-    )
+    his = make_his()
+    if not his.his_is_connected():
+        return []
+
+    sql = _load_sql()
+    cur = his.execute_with_retry(sql, dict_cursor=True)
+    if not cur:
+        return []
+
     try:
-        with conn.cursor() as cur:
-            cur.execute(_load_sql())
-            rows = cur.fetchall() or []
+        rows = cur.fetchall() or []
     finally:
-        conn.close()
+        cur.close()
 
     normalized: List[dict] = []
     for row in rows:

@@ -4,7 +4,14 @@ from pathlib import Path
 
 import pymysql
 import pymysql.cursors
+
+try:
+    import psycopg2
+except ImportError:  # psycopg2 is optional at import-time
+    psycopg2 = None  # type: ignore[assignment]
+
 from PyQt6.QtWidgets import (
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -21,6 +28,15 @@ from Setting_helper import (
     read_setting,
     save_settings,
 )
+from His_factory import reset_his
+
+DB_TYPE_MYSQL = "mysql"
+DB_TYPE_POSTGRES = "postgres"
+
+DEFAULT_PORT = {
+    DB_TYPE_MYSQL: "3306",
+    DB_TYPE_POSTGRES: "5432",
+}
 
 
 class DlgHisSetting(QDialog):
@@ -30,7 +46,12 @@ class DlgHisSetting(QDialog):
         self.settings = get_settings()
         self.setWindowTitle("HIS Connection Setting")
         self.setModal(True)
-        self.resize(460, 260)
+        self.resize(460, 300)
+
+        self.db_type_combo = QComboBox()
+        self.db_type_combo.addItem("MySQL", DB_TYPE_MYSQL)
+        self.db_type_combo.addItem("PostgreSQL", DB_TYPE_POSTGRES)
+        self.db_type_combo.currentIndexChanged.connect(self._on_db_type_changed)
 
         self.host_input = QLineEdit()
         self.port_input = QLineEdit()
@@ -40,6 +61,7 @@ class DlgHisSetting(QDialog):
         self.database_input = QLineEdit()
         self.charset_input = QLineEdit()
         for field in (
+            self.db_type_combo,
             self.host_input,
             self.port_input,
             self.user_input,
@@ -49,13 +71,15 @@ class DlgHisSetting(QDialog):
         ):
             field.setMinimumHeight(38)
 
-        form_layout = QFormLayout()
-        form_layout.addRow("Host", self.host_input)
-        form_layout.addRow("Port", self.port_input)
-        form_layout.addRow("User", self.user_input)
-        form_layout.addRow("Password", self.password_input)
-        form_layout.addRow("Database", self.database_input)
-        form_layout.addRow("Charset", self.charset_input)
+        self.form_layout = QFormLayout()
+        self.form_layout.addRow("Database Type", self.db_type_combo)
+        self.form_layout.addRow("Host", self.host_input)
+        self.form_layout.addRow("Port", self.port_input)
+        self.form_layout.addRow("User", self.user_input)
+        self.form_layout.addRow("Password", self.password_input)
+        self.form_layout.addRow("Database", self.database_input)
+        self._charset_label = "Charset"
+        self.form_layout.addRow(self._charset_label, self.charset_input)
 
         self.test_button = QPushButton("ทดสอบการเชื่อมต่อ")
         self.test_button.clicked.connect(self.test_connection)
@@ -72,14 +96,46 @@ class DlgHisSetting(QDialog):
         action_row.addWidget(button_box)
 
         layout = QVBoxLayout(self)
-        layout.addLayout(form_layout)
+        layout.addLayout(self.form_layout)
         layout.addStretch(1)
         layout.addLayout(action_row)
 
         self.load_settings()
 
+    # ------------------------------------------------------------------ helpers
+    def _current_db_type(self) -> str:
+        return str(self.db_type_combo.currentData() or DB_TYPE_MYSQL)
+
+    def _set_db_type(self, db_type: str) -> None:
+        target = (db_type or DB_TYPE_MYSQL).lower()
+        if target in ("postgres", "postgresql", "pg"):
+            target = DB_TYPE_POSTGRES
+        else:
+            target = DB_TYPE_MYSQL
+        index = self.db_type_combo.findData(target)
+        if index >= 0:
+            self.db_type_combo.setCurrentIndex(index)
+
+    def _on_db_type_changed(self) -> None:
+        db_type = self._current_db_type()
+        is_pg = db_type == DB_TYPE_POSTGRES
+
+        # Toggle charset (MySQL-only field)
+        charset_row = self.form_layout.labelForField(self.charset_input)
+        self.charset_input.setVisible(not is_pg)
+        if charset_row is not None:
+            charset_row.setVisible(not is_pg)
+
+        # Auto-fill default port when it still matches the other driver's default
+        current_port = self.port_input.text().strip()
+        other_default = DEFAULT_PORT[DB_TYPE_MYSQL if is_pg else DB_TYPE_POSTGRES]
+        if not current_port or current_port == other_default:
+            self.port_input.setText(DEFAULT_PORT[db_type])
+
+    # ------------------------------------------------------------------ load/save
     def load_settings(self) -> None:
         env_values = load_env_defaults(self.env_path.parent)
+        self._set_db_type(self._read_setting("DB_TYPE", env_values["DB_TYPE"]))
         self.host_input.setText(self._read_setting("DB_HOST", env_values["DB_HOST"]))
         self.port_input.setText(self._read_setting("DB_PORT", env_values["DB_PORT"]))
         self.user_input.setText(self._read_setting("DB_USER", env_values["DB_USER"]))
@@ -92,14 +148,18 @@ class DlgHisSetting(QDialog):
         self.charset_input.setText(
             self._read_setting("DB_CHARSET", env_values["DB_CHARSET"])
         )
+        self._on_db_type_changed()
 
     def _read_setting(self, key: str, default: str) -> str:
         return read_setting(key, default, self.env_path.parent)
 
     def _get_form_values(self) -> dict[str, str]:
+        db_type = self._current_db_type()
+        default_port = DEFAULT_PORT[db_type]
         return {
+            "DB_TYPE": db_type,
             "DB_HOST": self.host_input.text().strip(),
-            "DB_PORT": self.port_input.text().strip() or "3306",
+            "DB_PORT": self.port_input.text().strip() or default_port,
             "DB_USER": self.user_input.text().strip(),
             "DB_PASSWORD": self.password_input.text(),
             "DB_NAME": self.database_input.text().strip(),
@@ -108,7 +168,9 @@ class DlgHisSetting(QDialog):
 
     def _validate(self) -> dict[str, str] | None:
         values = self._get_form_values()
-        required_keys = ["DB_HOST", "DB_PORT", "DB_USER", "DB_NAME", "DB_CHARSET"]
+        required_keys = ["DB_TYPE", "DB_HOST", "DB_PORT", "DB_USER", "DB_NAME"]
+        if values["DB_TYPE"] == DB_TYPE_MYSQL:
+            required_keys.append("DB_CHARSET")
         missing = [key for key in required_keys if not values[key]]
         if missing:
             QMessageBox.warning(
@@ -126,23 +188,39 @@ class DlgHisSetting(QDialog):
 
         return values
 
+    # ------------------------------------------------------------------ actions
     def test_connection(self) -> None:
         values = self._validate()
         if values is None:
             return
 
         try:
-            conn = pymysql.connect(
-                host=values["DB_HOST"],
-                port=int(values["DB_PORT"]),
-                user=values["DB_USER"],
-                password=values["DB_PASSWORD"],
-                database=values["DB_NAME"],
-                charset=values["DB_CHARSET"],
-                cursorclass=pymysql.cursors.DictCursor,
-                connect_timeout=5,
-            )
-            conn.close()
+            if values["DB_TYPE"] == DB_TYPE_POSTGRES:
+                if psycopg2 is None:
+                    raise RuntimeError(
+                        "ไม่พบ psycopg2 (รัน `uv sync` หรือ `uv add psycopg2-binary`)"
+                    )
+                conn = psycopg2.connect(
+                    host=values["DB_HOST"],
+                    port=int(values["DB_PORT"]),
+                    user=values["DB_USER"],
+                    password=values["DB_PASSWORD"],
+                    dbname=values["DB_NAME"],
+                    connect_timeout=5,
+                )
+                conn.close()
+            else:
+                conn = pymysql.connect(
+                    host=values["DB_HOST"],
+                    port=int(values["DB_PORT"]),
+                    user=values["DB_USER"],
+                    password=values["DB_PASSWORD"],
+                    database=values["DB_NAME"],
+                    charset=values["DB_CHARSET"],
+                    cursorclass=pymysql.cursors.DictCursor,
+                    connect_timeout=5,
+                )
+                conn.close()
         except Exception as exc:  # noqa: BLE001
             print(f"[SettingsDialog.test_connection] error: {exc}")
             QMessageBox.critical(
@@ -160,4 +238,5 @@ class DlgHisSetting(QDialog):
             return
 
         save_settings(values)
+        reset_his()
         self.accept()

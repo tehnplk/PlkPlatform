@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
 )
 
 from BuddyCareExcel_ui import BuddyCareExcelUI
-from His_lib import His2
+from His_factory import make_his
 from PersonDetail_dlg import DlgPersonDetail
 from Setting_helper import load_db_settings, read_setting, save_settings
 
@@ -103,30 +103,24 @@ def load_excel_for_lookup(path: str) -> pd.DataFrame:
 
 
 def create_db_connection():
-    env_path = Path(__file__).with_name(".env")
-    load_dotenv(dotenv_path=env_path)
-    db_settings = load_db_settings(env_path.parent)
-    host = str(db_settings["host"] or os.getenv("DB_HOST", ""))
-    port = int(db_settings["port"] or os.getenv("DB_PORT", "3306"))
-    user = str(db_settings["user"] or os.getenv("DB_USER", ""))
-    password = str(db_settings["password"] or os.getenv("DB_PASSWORD", ""))
-    database = str(db_settings["database"] or os.getenv("DB_NAME", ""))
-    charset = str(db_settings["charset"] or os.getenv("DB_CHARSET", "utf8mb4"))
+    """Open a FRESH pymysql DictCursor connection.
 
-    if not all([host, user, database]):
-        raise ValueError(
-            "ไม่พบค่าเชื่อมต่อฐานข้อมูล\n"
-            "กรุณาตั้งค่า DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME ใน Setting"
-        )
-
+    We intentionally do not return His_factory's singleton connection because
+    callers close the returned connection, which would invalidate the shared
+    HIS instance. The HIS lookup SQL here is MySQL-dialect only.
+    """
+    settings = load_db_settings()
+    if not settings.get("host") or not settings.get("user") or not settings.get("database"):
+        raise ConnectionError("ไม่พบค่าเชื่อมต่อฐานข้อมูล HIS")
     return pymysql.connect(
-        host=host,
-        port=port,
-        user=user,
-        password=password,
-        database=database,
-        charset=charset,
+        host=settings["host"],
+        port=int(settings["port"]),
+        user=settings["user"],
+        password=settings["password"],
+        database=settings["database"],
+        charset=settings.get("charset") or "utf8mb4",
         cursorclass=pymysql.cursors.DictCursor,
+        connect_timeout=5,
     )
 
 
@@ -333,8 +327,10 @@ def get_person_detail_by_cid(cid: str) -> Optional[dict[str, Any]]:
     if not normalized_cid:
         return None
 
-    conn = create_db_connection()
-    cursor = conn.cursor()
+    his = make_his()
+    cursor = his.get_cursor(dict_cursor=True)
+    if cursor is None:
+        return None
 
     try:
         sql = (
@@ -360,7 +356,6 @@ def get_person_detail_by_cid(cid: str) -> Optional[dict[str, Any]]:
         return cursor.fetchone()
     finally:
         cursor.close()
-        conn.close()
 
 
 class BuddyCareExcelWorker(QObject):
@@ -379,8 +374,10 @@ class BuddyCareExcelWorker(QObject):
                 self.finished.emit(self.df)
                 return
 
-            conn = create_db_connection()
-            cursor = conn.cursor()
+            his = make_his()
+            cursor = his.get_cursor(dict_cursor=True)
+            if cursor is None:
+                raise ConnectionError("ไม่สามารถสร้าง Database Cursor ได้")
 
             try:
                 total = len(self.df)
@@ -401,7 +398,6 @@ class BuddyCareExcelWorker(QObject):
                     self.progress_changed.emit(int((i / total) * 100))
             finally:
                 cursor.close()
-                conn.close()
 
             self.finished.emit(self.df)
         except Exception as exc:  # noqa: BLE001
@@ -902,9 +898,9 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
         main_pdx = dx_code[:3] if len(dx_code) >= 3 else dx_code
 
         try:
-            his = His2()
+            his = make_his()
         except Exception as exc:  # noqa: BLE001
-            print(f"[on_open_visit_clicked] cannot create His2: {exc}")
+            print(f"[on_open_visit_clicked] cannot create His: {exc}")
             traceback.print_exc()
             QMessageBox.critical(self, "เชื่อมต่อ HIS ไม่สำเร็จ", str(exc))
             return

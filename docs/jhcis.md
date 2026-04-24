@@ -1,4 +1,4 @@
-## credentail
+## credential
  - host = localhost
  - port = 3333
  - user = root

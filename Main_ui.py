@@ -222,6 +222,10 @@ class MainUI(QMainWindow):
         self.telemed_daily_action.setStatusTip("เปิดโมดูลอัพเดทTelemed Daily")
         self.telemed_daily_action.triggered.connect(self.open_telemed_daily_module)
 
+        self.quick_visit_action = QAction("Quick Visit", self)
+        self.quick_visit_action.setStatusTip("ค้นหาคนไข้และเปิด visit ได้เร็ว")
+        self.quick_visit_action.triggered.connect(self.open_quick_visit_module)
+
         self.exit_action = QAction("Exit", self)
         self.exit_action.setStatusTip("ปิดโปรแกรม")
         self.exit_action.triggered.connect(self.close)
@@ -295,6 +299,7 @@ class MainUI(QMainWindow):
         modules_menu.addAction(self.data_quality_action)
         modules_menu.addAction(self.revenue_storage_action)
         modules_menu.addAction(self.telemed_daily_action)
+        modules_menu.addAction(self.quick_visit_action)
 
         menu_layout.addWidget(self._create_menu_button("File", file_menu))
         menu_layout.addWidget(self._create_menu_button("Modules", modules_menu))

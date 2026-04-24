@@ -12,6 +12,7 @@ from BuddyCareExcel_logic import BuddyCareExcelWindow
 from DataCenter_logic import DataCenterWindow
 from HisSetting_dlg import DlgHisSetting
 from Main_ui import MainUI
+from QuickVisit_logic import QuickVisitWindow
 from TelemedDaily_ui import TelemedDailyWindow
 
 
@@ -26,6 +27,7 @@ class MainWindow(MainUI):
         self._buddycare_subwindow = None
         self._datacenter_subwindow = None
         self._telemed_daily_subwindow = None
+        self._quick_visit_subwindow = None
         self._auto_update = AutoUpdateController(parent=self)
         self._auto_update.update_ready.connect(self._apply_downloaded_update)
         self._auto_update.failed.connect(self._handle_update_error)
@@ -107,6 +109,26 @@ class MainWindow(MainUI):
 
     def _clear_telemed_daily_reference(self) -> None:
         self._telemed_daily_subwindow = None
+
+    def open_quick_visit_module(self) -> None:
+        if self._quick_visit_subwindow is not None:
+            self.mdi_area.setActiveSubWindow(self._quick_visit_subwindow)
+            self._quick_visit_subwindow.widget().show()
+            self._quick_visit_subwindow.showMaximized()
+            return
+
+        quick_visit_widget = QuickVisitWindow()
+        subwindow = self.mdi_area.addSubWindow(quick_visit_widget)
+        subwindow.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        subwindow.setWindowTitle("Quick Visit")
+        subwindow.destroyed.connect(self._clear_quick_visit_reference)
+        quick_visit_widget.show()
+        subwindow.showMaximized()
+        self._quick_visit_subwindow = subwindow
+        self.statusBar().showMessage("เปิด Quick Visit แล้ว", 3000)
+
+    def _clear_quick_visit_reference(self) -> None:
+        self._quick_visit_subwindow = None
 
     def _show_pending_module(self, module_name: str) -> None:
         self.statusBar().showMessage(f"เปิดโมดูล {module_name}", 3000)

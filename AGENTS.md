@@ -1,6 +1,5 @@
 ## PlkPlatform Repo
-- ระบบอ่านไฟล์ excel เพื่อเชื่อมโยงข้อมูลกับ HIS
-- ระบบเปิด Visit เข้า His
+- ระบบ Utility จัดการ HIS
 
 ## AGENTS
 - your are expert Pyqt6 with Python.
@@ -16,5 +15,8 @@
 ## Database Credentials
 - read @docs/*.*
 
-## test run
+## Test or run
 - use `uv run start.py`
+
+## Build
+- use uv  pyinstaller

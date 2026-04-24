@@ -7,6 +7,7 @@ from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
+from AutoUpdate_logic import AutoUpdateController, DownloadedUpdate, launch_update_installer
 from BuddyCareExcel_logic import BuddyCareExcelWindow
 from DataCenter_logic import DataCenterWindow
 from HisSetting_dlg import DlgHisSetting
@@ -23,6 +24,10 @@ class MainWindow(MainUI):
         super().__init__()
         self._buddycare_subwindow = None
         self._datacenter_subwindow = None
+        self._update_message_box = None
+        self._auto_update = AutoUpdateController(parent=self)
+        self._auto_update.update_ready.connect(self._apply_downloaded_update)
+        self._auto_update.failed.connect(self._handle_update_error)
 
     def open_buddycare_excel(self) -> None:
         if self._buddycare_subwindow is not None:
@@ -90,6 +95,37 @@ class MainWindow(MainUI):
             f"โมดูล {module_name} พร้อมสำหรับเชื่อมต่อหน้าจอถัดไป",
         )
 
+    def check_for_updates(self) -> None:
+        self.statusBar().showMessage("Checking for updates...", 3000)
+        self._auto_update.check_in_background()
+
+    def _apply_downloaded_update(self, downloaded_update: DownloadedUpdate) -> None:
+        installer_started = launch_update_installer(downloaded_update.staged_path)
+        if not installer_started:
+            self.statusBar().showMessage(
+                f"Downloaded version {downloaded_update.info.version}. Installer skipped in dev mode.",
+                5000,
+            )
+            return
+
+        self.statusBar().showMessage(
+            f"Downloaded version {downloaded_update.info.version}. Closing to apply update...",
+            5000,
+        )
+        self._update_message_box = QMessageBox(
+            QMessageBox.Icon.Information,
+            "Update ready",
+            f"Downloaded Plk Platform version {downloaded_update.info.version}.\n\n"
+            "The program will close now. Open it again to use the new version.",
+            QMessageBox.StandardButton.NoButton,
+            self,
+        )
+        self._update_message_box.show()
+        QTimer.singleShot(2500, QApplication.instance().quit)
+
+    def _handle_update_error(self, message: str) -> None:
+        self.statusBar().showMessage(f"Update check failed: {message}", 5000)
+
 
 def main() -> None:
     app = QApplication(sys.argv)
@@ -101,6 +137,7 @@ def main() -> None:
         window.setWindowIcon(QIcon(str(icon_path)))
     window.show()
     QTimer.singleShot(0, window.showMaximized)
+    QTimer.singleShot(1500, window.check_for_updates)
     sys.exit(app.exec())
 
 

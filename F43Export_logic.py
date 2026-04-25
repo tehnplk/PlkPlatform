@@ -55,12 +55,14 @@ class _ExportWorker(QObject):
         date_from: str,
         date_to: str,
         output_dir: Path,
+        ovstist: str = "",
     ) -> None:
         super().__init__()
         self.files = files
         self.date_from = date_from   # YYYYMMDD
         self.date_to = date_to       # YYYYMMDD
         self.output_dir = output_dir
+        self.ovstist = ovstist
         self._cancel = False
 
     def cancel(self) -> None:
@@ -137,7 +139,11 @@ class _ExportWorker(QObject):
         date_to_iso = _to_iso_date(self.date_to)
 
         with conn.cursor() as cursor:
-            cursor.execute(sql, (date_from_iso, date_to_iso))
+            # ทุก query มี 4 placeholder: date_from, date_to, ovstist, ovstist
+            cursor.execute(
+                sql,
+                (date_from_iso, date_to_iso, self.ovstist, self.ovstist),
+            )
 
             buffer = io.StringIO()
             buffer.write("|".join(c.upper() for c in columns) + "\n")
@@ -167,9 +173,28 @@ class F43ExportWindow(F43ExportUI):
         if desktop.is_dir():
             self.output_path.setText(str(desktop))
 
+        self._load_ovstist_options()
+
         self.btn_browse.clicked.connect(self.browse_output_folder)
         self.btn_export.clicked.connect(self._on_export_clicked)
         self.btn_cancel.clicked.connect(self._on_cancel_clicked)
+
+    def _load_ovstist_options(self) -> None:
+        try:
+            conn = _open_his_connection()
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT ovstist, name FROM ovstist "
+                        "WHERE ovstist IS NOT NULL AND ovstist <> '' "
+                        "ORDER BY ovstist"
+                    )
+                    items = [(str(c), f"{c} - {n}") for c, n in cursor.fetchall()]
+            finally:
+                conn.close()
+            self.populate_ovstist(items)
+        except Exception:  # noqa: BLE001
+            traceback.print_exc()
 
     def _on_export_clicked(self) -> None:
         files = self.selected_files()
@@ -197,9 +222,12 @@ class F43ExportWindow(F43ExportUI):
         date_from_str = date(d_from.year(), d_from.month(), d_from.day()).strftime("%Y%m%d")
         date_to_str = date(d_to.year(), d_to.month(), d_to.day()).strftime("%Y%m%d")
 
+        ovstist = self.selected_ovstist()
         self.log_view.clear()
+        ovstist_label = ovstist if ovstist else "ทั้งหมด"
         self.append_log(
             f"เริ่มส่งออก {len(files)} แฟ้ม | ช่วงวันที่ {date_from_str} - {date_to_str}"
+            f" | ประเภทการมา: {ovstist_label}"
         )
         self.append_log(f"โฟลเดอร์ส่งออก: {out_dir}")
 
@@ -209,7 +237,7 @@ class F43ExportWindow(F43ExportUI):
         self.btn_cancel.setEnabled(True)
 
         self._thread = QThread(self)
-        self._worker = _ExportWorker(files, date_from_str, date_to_str, out_dir)
+        self._worker = _ExportWorker(files, date_from_str, date_to_str, out_dir, ovstist)
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)
         self._worker.progress.connect(self._on_progress)

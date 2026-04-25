@@ -3,6 +3,7 @@ from __future__ import annotations
 from PyQt6.QtCore import QDate, QLocale, Qt
 from PyQt6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDateEdit,
     QFileDialog,
     QGridLayout,
@@ -69,7 +70,7 @@ class F43ExportUI(QMainWindow):
         if self.date_from.calendarWidget() is not None:
             self.date_from.calendarWidget().setLocale(en_locale)
         today = QDate.currentDate()
-        self.date_from.setDate(today.addDays(-7))
+        self.date_from.setDate(today)
 
         self.date_to = QDateEdit()
         self.date_to.setCalendarPopup(True)
@@ -84,6 +85,12 @@ class F43ExportUI(QMainWindow):
         date_layout.addSpacing(10)
         date_layout.addWidget(QLabel("ถึง:"))
         date_layout.addWidget(self.date_to)
+        date_layout.addSpacing(16)
+        date_layout.addWidget(QLabel("ประเภทการมา:"))
+        self.ovstist_combo = QComboBox()
+        self.ovstist_combo.addItem("ทั้งหมด", "")
+        self.ovstist_combo.setMinimumWidth(280)
+        date_layout.addWidget(self.ovstist_combo)
         date_layout.addStretch(1)
         root.addWidget(date_box)
 
@@ -147,6 +154,15 @@ class F43ExportUI(QMainWindow):
         self.log_view.setReadOnly(True)
         self.log_view.setMinimumHeight(140)
         root.addWidget(self.log_view, 1)
+
+    def populate_ovstist(self, items: list[tuple[str, str]]) -> None:
+        """items = [(ovstist_code, label), ...] — appended after 'ทั้งหมด'"""
+        # ตัวแรก 'ทั้งหมด' (data='') ไว้แล้ว
+        for code, label in items:
+            self.ovstist_combo.addItem(label, code)
+
+    def selected_ovstist(self) -> str:
+        return str(self.ovstist_combo.currentData() or "")
 
     def selected_files(self) -> list[str]:
         return [

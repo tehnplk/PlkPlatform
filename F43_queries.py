@@ -104,6 +104,7 @@ WHERE p.cid IS NOT NULL
       AND o2.vstdate BETWEEN %s AND %s
       AND (sp2.no_export_43 = 'N' OR sp2.no_export_43 IS NULL)
       AND (o2.anonymous_visit = 'N' OR o2.anonymous_visit IS NULL)
+      AND (%s = '' OR o2.ovstist = %s)
   )
 ORDER BY p.person_id
 """
@@ -115,7 +116,7 @@ ORDER BY p.person_id
 SERVICE_SQL = """
 SELECT
   COALESCE((SELECT hospitalcode FROM opdconfig LIMIT 1), '')   AS hospcode,
-  COALESCE(LPAD(CAST(ps.person_id AS CHAR), 6, '0'), '')       AS pid,
+  COALESCE(LPAD(CAST(ps.person_id AS CHAR), 6, '0'), o.hn, '') AS pid,
   COALESCE(o.hn, '')                                           AS hn,
   CAST(COALESCE(q.seq_id, '') AS CHAR)                         AS seq,
   COALESCE(DATE_FORMAT(o.vstdate, '%%Y%%m%%d'), '')            AS date_serv,
@@ -166,6 +167,7 @@ LEFT JOIN rfrcs rc1     ON rc1.rfrcs = ro.rfrcs
 WHERE o.vstdate BETWEEN %s AND %s
   AND (sp.no_export_43 = 'N' OR sp.no_export_43 IS NULL)
   AND (o.anonymous_visit = 'N' OR o.anonymous_visit IS NULL)
+  AND (%s = '' OR o.ovstist = %s)
 ORDER BY o.vn
 """
 
@@ -175,7 +177,7 @@ ORDER BY o.vn
 DIAGNOSIS_OPD_SQL = """
 SELECT
   COALESCE((SELECT hospitalcode FROM opdconfig LIMIT 1), '')   AS hospcode,
-  COALESCE(LPAD(CAST(ps.person_id AS CHAR), 6, '0'), '')       AS pid,
+  COALESCE(LPAD(CAST(ps.person_id AS CHAR), 6, '0'), o.hn, '') AS pid,
   CAST(COALESCE(q.seq_id, '') AS CHAR)                         AS seq,
   COALESCE(DATE_FORMAT(o.vstdate, '%%Y%%m%%d'), '')            AS date_serv,
   COALESCE(d.diagtype, '')                                     AS diagtype,
@@ -191,6 +193,7 @@ LEFT JOIN patient pt ON pt.hn = o.hn
 LEFT JOIN person ps  ON ps.cid = pt.cid AND pt.cid IS NOT NULL AND pt.cid <> ''
 LEFT JOIN spclty sp  ON sp.spclty = o.spclty
 WHERE o.vstdate BETWEEN %s AND %s
+  AND (%s = '' OR o.ovstist = %s)
 ORDER BY o.vn, d.diagtype
 """
 

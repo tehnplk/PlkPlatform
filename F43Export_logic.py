@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import re
 import traceback
 import zipfile
 from datetime import date, datetime
@@ -139,10 +140,14 @@ class _ExportWorker(QObject):
         date_to_iso = _to_iso_date(self.date_to)
 
         with conn.cursor() as cursor:
-            # ทุก query มี 4 placeholder: date_from, date_to, ovstist, ovstist
+            # แต่ละชุด filter ใช้ 4 placeholder: date_from, date_to, ovstist, ovstist
+            params = (date_from_iso, date_to_iso, self.ovstist, self.ovstist)
+            placeholder_count = len(re.findall(r"(?<!%)%s", sql))
+            if placeholder_count % len(params) != 0:
+                raise RuntimeError(f"จำนวน placeholder ของ {key} ไม่ถูกต้อง: {placeholder_count}")
             cursor.execute(
                 sql,
-                (date_from_iso, date_to_iso, self.ovstist, self.ovstist),
+                params * (placeholder_count // len(params)),
             )
 
             buffer = io.StringIO()

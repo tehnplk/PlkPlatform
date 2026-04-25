@@ -10,11 +10,14 @@ Modules
 │   ├─ คุณภาพข้อมูล
 │   ├─ จัดเก็บรายได้
 │   └─ AI Assistant
-└─ 🚨 นโยบายเร่งด่วน ▶
-    ├─ ส่งข้อมูลเข้าระบบกลาง ▶
-    │   ├─ Telemed - ส่งข้อมูลประเภทการมาด้วย OVST
-    │   └─ Telemed - ส่งข้อมูลประเภทการมาด้วยแฟ้ม SERVICE
-    └─ เปิด Visit ด้วย BuddyCare Excel
+├─ 🚨 นโยบายเร่งด่วน ▶
+│   ├─ ส่งข้อมูลเข้าระบบกลาง ▶
+│   │   ├─ Telemed - ส่งข้อมูลประเภทการมาด้วย OVST
+│   │   └─ Telemed - ส่งข้อมูลประเภทการมาด้วยแฟ้ม SERVICE
+│   └─ เปิด Visit ด้วย BuddyCare Excel
+└─ 📦 ส่งออกข้อมูล ▶
+    ├─ 43 Files
+    └─ 13 Files Plus (NHSO Digital Platform)
 
 View
 ├─ จัดเรียงซ้อน (Cascade)

@@ -218,6 +218,17 @@ class MainUI(QMainWindow):
         self.buddycare_visit_action.setStatusTip("เปิด visit จำนวนมากด้วย BuddyCare Excel")
         self.buddycare_visit_action.triggered.connect(self.open_buddycare_excel)
 
+        # ---- ส่งออกข้อมูล ----
+        self.export_43files_action = QAction("43 Files", self)
+        self.export_43files_action.setStatusTip("ส่งออกข้อมูลมาตรฐาน 43 แฟ้ม")
+        self.export_43files_action.triggered.connect(self.open_f43_export_module)
+
+        self.export_13files_plus_action = QAction("13 Files Plus (NHSO Digital Platform)", self)
+        self.export_13files_plus_action.setStatusTip("ส่งออกข้อมูล 13 แฟ้ม Plus สำหรับ NHSO Digital Platform")
+        self.export_13files_plus_action.triggered.connect(
+            lambda: self._show_pending_module("ส่งออก 13 Files Plus (NHSO Digital Platform)")
+        )
+
         self.ai_assistant_action = QAction("AI Assistant", self)
         self.ai_assistant_action.setStatusTip("เปิดโมดูล AI Assistant")
         self.ai_assistant_action.triggered.connect(self.open_ai_assistant_module)
@@ -343,6 +354,11 @@ class MainUI(QMainWindow):
 
         urgent_menu.addAction(self.buddycare_visit_action)
         modules_menu.addMenu(urgent_menu)
+
+        export_menu = QMenu("📦 ส่งออกข้อมูล", modules_menu)
+        export_menu.addAction(self.export_43files_action)
+        export_menu.addAction(self.export_13files_plus_action)
+        modules_menu.addMenu(export_menu)
 
         view_menu = QMenu(self)
         view_menu.addAction(self.view_cascade_action)

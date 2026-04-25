@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 from AutoUpdate_logic import AutoUpdateController, DownloadedUpdate, is_packaged_app, launch_update_installer
 from BuddyCareExcel_logic import BuddyCareExcelWindow
 from DataCenter_logic import DataCenterWindow
+from F43Export_logic import F43ExportWindow
 from HisSetting_dlg import DlgHisSetting
 from Main_ui import MainUI
 from QuickVisit_logic import QuickVisitWindow
@@ -28,9 +29,16 @@ class MainWindow(MainUI):
         self._datacenter_subwindow = None
         self._telemed_daily_subwindow = None
         self._quick_visit_subwindow = None
+        self._f43_export_subwindow = None
         self._auto_update = AutoUpdateController(parent=self)
         self._auto_update.update_ready.connect(self._apply_downloaded_update)
         self._auto_update.failed.connect(self._handle_update_error)
+
+        # ตรวจอัปเดตทุก 1 ชั่วโมง (เพิ่มเติมจากตอนเปิดโปรแกรม)
+        self._update_timer = QTimer(self)
+        self._update_timer.setInterval(60 * 60 * 1000)  # 1 ชั่วโมง
+        self._update_timer.timeout.connect(self.check_for_updates)
+        self._update_timer.start()
 
     def open_buddycare_excel(self) -> None:
         if self._buddycare_subwindow is not None:
@@ -129,6 +137,26 @@ class MainWindow(MainUI):
 
     def _clear_quick_visit_reference(self) -> None:
         self._quick_visit_subwindow = None
+
+    def open_f43_export_module(self) -> None:
+        if self._f43_export_subwindow is not None:
+            self.mdi_area.setActiveSubWindow(self._f43_export_subwindow)
+            self._f43_export_subwindow.widget().show()
+            self._f43_export_subwindow.showMaximized()
+            return
+
+        widget = F43ExportWindow()
+        subwindow = self.mdi_area.addSubWindow(widget)
+        subwindow.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        subwindow.setWindowTitle("ส่งออก 43 แฟ้ม")
+        subwindow.destroyed.connect(self._clear_f43_export_reference)
+        widget.show()
+        subwindow.showMaximized()
+        self._f43_export_subwindow = subwindow
+        self.statusBar().showMessage("เปิดโมดูลส่งออก 43 แฟ้มแล้ว", 3000)
+
+    def _clear_f43_export_reference(self) -> None:
+        self._f43_export_subwindow = None
 
     def _show_pending_module(self, module_name: str) -> None:
         self.statusBar().showMessage(f"เปิดโมดูล {module_name}", 3000)

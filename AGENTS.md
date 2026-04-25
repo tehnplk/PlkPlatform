@@ -23,6 +23,8 @@
 - `ModuleName_ui.py` — PyQt6 UI classes (QMainWindow, QWidget, QDialog)
 - `ModuleName_dlg.py` — standalone dialog windows
 
+- syncronize @docs/menu.md  with application menu.
+
 UI messages and docstrings are in Thai.
 
 ## Architecture

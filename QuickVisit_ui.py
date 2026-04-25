@@ -22,7 +22,9 @@ RESULT_COLUMNS = [
     ("ชื่อ-สกุล", "fullname"),
     ("เพศ", "sex"),
     ("วันเกิด", "birthday"),
+    ("อายุ", "age"),
     ("สิทธิ", "inscl"),
+    ("TYPE_AREA", "type_area"),
     ("เบอร์โทร", "mobile"),
 ]
 
@@ -67,7 +69,7 @@ class QuickVisitUI(QMainWindow):
         self.result_table = QTableView()
         self.result_table.setModel(self.result_model)
         self.result_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.result_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.result_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.result_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.result_table.setAlternatingRowColors(True)
         self.result_table.verticalHeader().setVisible(False)

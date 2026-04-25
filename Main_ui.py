@@ -206,6 +206,18 @@ class MainUI(QMainWindow):
         self.central_data_action.setStatusTip("เปิดโมดูลศูนย์ข้อมูลกลาง")
         self.central_data_action.triggered.connect(self.open_central_data_module)
 
+        self.central_data_ovst_action = QAction("Telemed - ส่งข้อมูลประเภทการมาด้วย OVST", self)
+        self.central_data_ovst_action.setStatusTip("ส่งข้อมูลประเภทการมาด้วยแฟ้ม OVST")
+        self.central_data_ovst_action.triggered.connect(self.open_central_data_module)
+
+        self.central_data_service_action = QAction("Telemed - ส่งข้อมูลประเภทการมาด้วยแฟ้ม SERVICE", self)
+        self.central_data_service_action.setStatusTip("ส่งข้อมูลประเภทการมาด้วยแฟ้ม SERVICE")
+        self.central_data_service_action.triggered.connect(self.open_telemed_daily_module)
+
+        self.buddycare_visit_action = QAction("เปิด Visit ด้วย BuddyCare Excel", self)
+        self.buddycare_visit_action.setStatusTip("เปิด visit จำนวนมากด้วย BuddyCare Excel")
+        self.buddycare_visit_action.triggered.connect(self.open_buddycare_excel)
+
         self.ai_assistant_action = QAction("AI Assistant", self)
         self.ai_assistant_action.setStatusTip("เปิดโมดูล AI Assistant")
         self.ai_assistant_action.triggered.connect(self.open_ai_assistant_module)
@@ -218,10 +230,6 @@ class MainUI(QMainWindow):
         self.revenue_storage_action.setStatusTip("เปิดโมดูลจัดเก็บรายได้")
         self.revenue_storage_action.triggered.connect(self.open_revenue_storage_module)
 
-        self.telemed_daily_action = QAction("อัพเดทTelemed Daily", self)
-        self.telemed_daily_action.setStatusTip("เปิดโมดูลอัพเดทTelemed Daily")
-        self.telemed_daily_action.triggered.connect(self.open_telemed_daily_module)
-
         self.quick_visit_action = QAction("Quick Visit", self)
         self.quick_visit_action.setStatusTip("ค้นหาคนไข้และเปิด visit ได้เร็ว")
         self.quick_visit_action.triggered.connect(self.open_quick_visit_module)
@@ -229,6 +237,31 @@ class MainUI(QMainWindow):
         self.exit_action = QAction("Exit", self)
         self.exit_action.setStatusTip("ปิดโปรแกรม")
         self.exit_action.triggered.connect(self.close)
+
+        # ---- View / MDI management actions ----
+        self.view_cascade_action = QAction("จัดเรียงซ้อน (Cascade)", self)
+        self.view_cascade_action.setStatusTip("จัดเรียงหน้าต่างย่อยแบบซ้อนกัน")
+        self.view_cascade_action.triggered.connect(lambda: self.mdi_area.cascadeSubWindows())
+
+        self.view_tile_action = QAction("จัดเรียงเรียง (Tile)", self)
+        self.view_tile_action.setStatusTip("จัดเรียงหน้าต่างย่อยแบบ tile")
+        self.view_tile_action.triggered.connect(lambda: self.mdi_area.tileSubWindows())
+
+        self.view_close_action = QAction("ปิดหน้าต่างปัจจุบัน", self)
+        self.view_close_action.setStatusTip("ปิดหน้าต่างย่อยที่กำลังใช้งานอยู่")
+        self.view_close_action.triggered.connect(lambda: self.mdi_area.closeActiveSubWindow())
+
+        self.view_close_all_action = QAction("ปิดทุกหน้าต่าง", self)
+        self.view_close_all_action.setStatusTip("ปิดหน้าต่างย่อยทั้งหมด")
+        self.view_close_all_action.triggered.connect(lambda: self.mdi_area.closeAllSubWindows())
+
+        self.view_next_action = QAction("หน้าต่างถัดไป", self)
+        self.view_next_action.setShortcut("Ctrl+Tab")
+        self.view_next_action.triggered.connect(lambda: self.mdi_area.activateNextSubWindow())
+
+        self.view_prev_action = QAction("หน้าต่างก่อนหน้า", self)
+        self.view_prev_action.setShortcut("Ctrl+Shift+Tab")
+        self.view_prev_action.triggered.connect(lambda: self.mdi_area.activatePreviousSubWindow())
 
     def _build_window_chrome(self) -> None:
         top_widget = QWidget(self)
@@ -292,17 +325,42 @@ class MainUI(QMainWindow):
         file_menu.addAction(self.exit_action)
 
         modules_menu = QMenu(self)
-        modules_menu.addAction(self.buddycare_action)
-        modules_menu.addAction(self.authen_action)
-        modules_menu.addAction(self.central_data_action)
-        modules_menu.addAction(self.ai_assistant_action)
-        modules_menu.addAction(self.data_quality_action)
-        modules_menu.addAction(self.revenue_storage_action)
-        modules_menu.addAction(self.telemed_daily_action)
-        modules_menu.addAction(self.quick_visit_action)
+
+        helpers_menu = QMenu("🛠️ ระบบช่วยงาน", modules_menu)
+        helpers_menu.addAction(self.authen_action)
+        helpers_menu.addAction(self.quick_visit_action)
+        helpers_menu.addAction(self.data_quality_action)
+        helpers_menu.addAction(self.revenue_storage_action)
+        helpers_menu.addAction(self.ai_assistant_action)
+        modules_menu.addMenu(helpers_menu)
+
+        urgent_menu = QMenu("🚨 นโยบายเร่งด่วน", modules_menu)
+
+        central_submenu = QMenu("ส่งข้อมูลเข้าระบบกลาง", urgent_menu)
+        central_submenu.addAction(self.central_data_ovst_action)
+        central_submenu.addAction(self.central_data_service_action)
+        urgent_menu.addMenu(central_submenu)
+
+        urgent_menu.addAction(self.buddycare_visit_action)
+        modules_menu.addMenu(urgent_menu)
+
+        view_menu = QMenu(self)
+        view_menu.addAction(self.view_cascade_action)
+        view_menu.addAction(self.view_tile_action)
+        view_menu.addSeparator()
+        view_menu.addAction(self.view_next_action)
+        view_menu.addAction(self.view_prev_action)
+        view_menu.addSeparator()
+        view_menu.addAction(self.view_close_action)
+        view_menu.addAction(self.view_close_all_action)
+        view_menu.addSeparator()
+        self._view_windows_separator_added = True
+        view_menu.aboutToShow.connect(lambda m=view_menu: self._rebuild_view_windows_list(m))
+        self._view_menu = view_menu
 
         menu_layout.addWidget(self._create_menu_button("File", file_menu))
         menu_layout.addWidget(self._create_menu_button("Modules", modules_menu))
+        menu_layout.addWidget(self._create_menu_button("View", view_menu))
         menu_layout.addStretch(1)
 
         top_layout.addWidget(self.title_bar)
@@ -362,6 +420,42 @@ class MainUI(QMainWindow):
 
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.main_toolbar)
         self._sync_toolbar_layout(self.main_toolbar.orientation())
+
+    def _rebuild_view_windows_list(self, menu: QMenu) -> None:
+        """รีเฟรชรายการ MDI subwindow ใน View menu (ส่วนหลัง separator สุดท้าย)"""
+        # ลบ action เดิมที่เป็นรายการ subwindow ออก (ทุก action หลัง separator สุดท้าย)
+        actions = menu.actions()
+        last_sep_idx = -1
+        for i, a in enumerate(actions):
+            if a.isSeparator():
+                last_sep_idx = i
+        if last_sep_idx >= 0:
+            for a in actions[last_sep_idx + 1 :]:
+                menu.removeAction(a)
+
+        sub_windows = self.mdi_area.subWindowList()
+        if not sub_windows:
+            empty = QAction("(ไม่มีหน้าต่างเปิดอยู่)", menu)
+            empty.setEnabled(False)
+            menu.addAction(empty)
+            return
+
+        active = self.mdi_area.activeSubWindow()
+        for i, sw in enumerate(sub_windows, start=1):
+            title = sw.windowTitle() or f"Window {i}"
+            label = f"&{i} {title}" if i < 10 else title
+            act = QAction(label, menu)
+            act.setCheckable(True)
+            act.setChecked(sw is active)
+            act.triggered.connect(lambda _checked=False, w=sw: self._activate_sub_window(w))
+            menu.addAction(act)
+
+    def _activate_sub_window(self, sw) -> None:
+        if sw is None:
+            return
+        self.mdi_area.setActiveSubWindow(sw)
+        sw.showNormal()
+        sw.raise_()
 
     def _create_menu_button(self, label: str, menu: QMenu) -> QToolButton:
         button = QToolButton(self)

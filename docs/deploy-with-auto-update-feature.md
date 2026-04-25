@@ -1,4 +1,6 @@
-# Auto Update
+# Application Deploy Guide
+
+## Auto Update
 
 Plk Platform checks for updates after startup when running as a PyInstaller executable.
 Development runs through `uv run start.py` skip update installation unless `PLK_UPDATE_ALLOW_DEV=1`.

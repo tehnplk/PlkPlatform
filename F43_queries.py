@@ -220,7 +220,12 @@ SELECT
   COALESCE(rf.refer_hospcode, '')                              AS referinhosp,
   COALESCE(rf.f43_causein_id, '')                             AS causein,
   COALESCE(s.cc, '')                                           AS chiefcomp,
-  '1'                                                          AS servplace,
+  CASE
+    WHEN oi.export_code = '5' THEN '2'
+    WHEN o.visit_type = 'O' THEN '2'
+    WHEN o.visit_type = 'I' THEN '1'
+    ELSE '1'
+  END                                                          AS servplace,
   CASE WHEN s.temperature IS NULL THEN '' ELSE CAST(ROUND(s.temperature, 1) AS CHAR) END AS btemp,
   CAST(CAST(COALESCE(s.bps, 0) AS UNSIGNED) AS CHAR)           AS sbp,
   CAST(CAST(COALESCE(s.bpd, 0) AS UNSIGNED) AS CHAR)           AS dbp,

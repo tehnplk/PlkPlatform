@@ -1,6 +1,8 @@
 # CLAUDE.md
+- before run terminal command should convert output encoding to utf8.
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## PlkPlatform Repo
 ระบบ Utility จัดการ HIS (Hospital Information System utility)

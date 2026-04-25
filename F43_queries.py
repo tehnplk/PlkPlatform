@@ -41,7 +41,7 @@ PERSON_SQL = """
 SELECT
   COALESCE((SELECT hospitalcode FROM opdconfig LIMIT 1), '') AS hospcode,
   COALESCE(p.cid, '')                                          AS cid,
-  CAST(p.person_id AS CHAR)                                    AS pid,
+  LPAD(CAST(p.person_id AS CHAR), 6, '0')                      AS pid,
   CAST(COALESCE(p.house_id, '') AS CHAR)                       AS hid,
   COALESCE(pn.provis_code, '')                                 AS prename,
   COALESCE(p.fname, '')                                        AS name,
@@ -50,24 +50,35 @@ SELECT
   COALESCE(p.sex, '')                                          AS sex,
   COALESCE(DATE_FORMAT(p.birthdate, '%%Y%%m%%d'), '')          AS birth,
   COALESCE(p.marrystatus, '')                                  AS mstatus,
-  COALESCE(oc.nhso_code, '')                                   AS occupation_old,
+  COALESCE(oc.occupation, '')                                  AS occupation_old,
   COALESCE(oc.nhso_code, '')                                   AS occupation_new,
   COALESCE(nt.nhso_code, '')                                   AS race,
   COALESCE(nt2.nhso_code, '')                                  AS nation,
   COALESCE(rl.nhso_code, '')                                   AS religion,
-  COALESCE(ed.provis_code, '')                                 AS education,
+  COALESCE(LPAD(ed.provis_code, 2, '0'), '')                   AS education,
   COALESCE(CAST(p.person_house_position_id AS CHAR), '')       AS fstatus,
   COALESCE(p.father_cid, '')                                   AS father,
   COALESCE(p.mother_cid, '')                                   AS mother,
   COALESCE(p.sps_cid, '')                                      AS couple,
-  COALESCE(hr.export_code, '')                                 AS vstatus,
+  '5'                                                          AS vstatus,
   COALESCE(DATE_FORMAT(p.movein_date, '%%Y%%m%%d'), '')        AS movein,
   COALESCE(CAST(p.person_discharge_id AS CHAR), '9')           AS discharge,
   COALESCE(DATE_FORMAT(p.discharge_date, '%%Y%%m%%d'), '')     AS ddischarge,
-  COALESCE(pb.code, '')                                        AS abogroup,
-  ''                                                           AS rhgroup,
+  CASE
+    WHEN p.blood_group IS NULL OR p.blood_group = '' THEN ''
+    WHEN p.blood_group LIKE 'A%%'  AND p.blood_group NOT LIKE 'AB%%' THEN '1'
+    WHEN p.blood_group LIKE 'B%%'  THEN '2'
+    WHEN p.blood_group LIKE 'AB%%' THEN '3'
+    WHEN p.blood_group LIKE 'O%%'  THEN '4'
+    ELSE '9'
+  END                                                          AS abogroup,
+  CASE
+    WHEN p.bloodgroup_rh LIKE '%%+%%' THEN '1'
+    WHEN p.bloodgroup_rh LIKE '%%-%%' THEN '2'
+    ELSE ''
+  END                                                          AS rhgroup,
   COALESCE(pl.nhso_code, '')                                   AS labor,
-  ''                                                           AS passport,
+  COALESCE(pt.passport_no, '')                                 AS passport,
   COALESCE(CAST(p.house_regist_type_id AS CHAR), '')           AS typearea,
   COALESCE(DATE_FORMAT(p.last_update, '%%Y%%m%%d%%H%%i%%s'), '') AS d_update,
   COALESCE(p.hometel, '')                                      AS telephone,
@@ -80,13 +91,20 @@ LEFT JOIN nationality nt ON nt.nationality = p.nationality
 LEFT JOIN nationality nt2 ON nt2.nationality = p.citizenship
 LEFT JOIN religion rl ON rl.religion = p.religion
 LEFT JOIN education ed ON ed.education = p.education
-LEFT JOIN provis_bgroup pb ON pb.name = p.blood_group
-LEFT JOIN house_regist_type hr ON hr.house_regist_type_id = p.house_regist_type_id
 LEFT JOIN pname pn ON pn.name = p.pname
 LEFT JOIN person_labor_type pl ON pl.person_labor_type_id = p.person_labor_type_id
 WHERE p.cid IS NOT NULL
   AND p.cid <> ''
-  AND DATE(p.last_update) BETWEEN %s AND %s
+  AND EXISTS (
+    SELECT 1
+    FROM ovst o2
+    JOIN patient pt2 ON pt2.hn = o2.hn
+    LEFT JOIN spclty sp2 ON sp2.spclty = o2.spclty
+    WHERE pt2.cid = p.cid
+      AND o2.vstdate BETWEEN %s AND %s
+      AND (sp2.no_export_43 = 'N' OR sp2.no_export_43 IS NULL)
+      AND (o2.anonymous_visit = 'N' OR o2.anonymous_visit IS NULL)
+  )
 ORDER BY p.person_id
 """
 
@@ -97,33 +115,37 @@ ORDER BY p.person_id
 SERVICE_SQL = """
 SELECT
   COALESCE((SELECT hospitalcode FROM opdconfig LIMIT 1), '')   AS hospcode,
-  CAST(COALESCE(ps.person_id, '') AS CHAR)                     AS pid,
+  COALESCE(LPAD(CAST(ps.person_id AS CHAR), 6, '0'), '')       AS pid,
   COALESCE(o.hn, '')                                           AS hn,
   CAST(COALESCE(q.seq_id, '') AS CHAR)                         AS seq,
   COALESCE(DATE_FORMAT(o.vstdate, '%%Y%%m%%d'), '')            AS date_serv,
   COALESCE(DATE_FORMAT(o.vsttime, '%%H%%i%%s'), '')            AS time_serv,
-  COALESCE(CAST(o.visit_type AS CHAR), '')                     AS location,
-  ''                                                           AS intime,
-  COALESCE(pts.code, y.nhso_code, '')                          AS instype,
+  CASE WHEN pt.type_area = '4' THEN '2' ELSE '1' END           AS location,
+  CASE
+    WHEN o.vsttime IS NULL THEN '1'
+    WHEN HOUR(o.vsttime) BETWEEN 8 AND 15 THEN '1'
+    ELSE '2'
+  END                                                          AS intime,
+  COALESCE(pts.pttype_std_code, y.nhso_code, '')               AS instype,
   COALESCE(o.pttypeno, '')                                     AS insid,
   COALESCE(o.hospmain, '')                                     AS main,
   COALESCE(oi.export_code, '')                                 AS typein,
   COALESCE(rf.refer_hospcode, '')                              AS referinhosp,
   ''                                                           AS causein,
   COALESCE(s.cc, '')                                           AS chiefcomp,
-  ''                                                           AS servplace,
-  COALESCE(CAST(s.temperature AS CHAR), '')                    AS btemp,
-  COALESCE(CAST(s.bps AS CHAR), '')                            AS sbp,
-  COALESCE(CAST(s.bpd AS CHAR), '')                            AS dbp,
-  COALESCE(CAST(s.pulse AS CHAR), '')                          AS pr,
-  COALESCE(CAST(s.rr AS CHAR), '')                             AS rr,
-  COALESCE(oo.export_code, '')                                 AS typeout,
+  '1'                                                          AS servplace,
+  CASE WHEN s.temperature IS NULL THEN '' ELSE CAST(ROUND(s.temperature, 1) AS CHAR) END AS btemp,
+  CAST(CAST(COALESCE(s.bps, 0) AS UNSIGNED) AS CHAR)           AS sbp,
+  CAST(CAST(COALESCE(s.bpd, 0) AS UNSIGNED) AS CHAR)           AS dbp,
+  CAST(CAST(COALESCE(s.pulse, 0) AS UNSIGNED) AS CHAR)         AS pr,
+  CAST(CAST(COALESCE(s.rr, 0) AS UNSIGNED) AS CHAR)            AS rr,
+  COALESCE(oo.export_code, '1')                                AS typeout,
   COALESCE(ro.refer_hospcode, '')                              AS referouthosp,
   COALESCE(rc1.export_code, '')                                AS causeout,
-  COALESCE(CAST(v.income AS CHAR), '')                         AS cost,
-  COALESCE(CAST(v.income AS CHAR), '')                         AS price,
-  COALESCE(CAST(v.rcpt_money AS CHAR), '')                     AS payprice,
-  COALESCE(CAST(v.rcpt_money AS CHAR), '')                     AS actualpay,
+  CASE WHEN v.income IS NULL THEN '' ELSE CAST(CAST(v.income AS DECIMAL(10,2)) AS CHAR) END AS cost,
+  CASE WHEN v.income IS NULL THEN '' ELSE CAST(CAST(v.income AS DECIMAL(10,2)) AS CHAR) END AS price,
+  CASE WHEN v.rcpt_money IS NULL THEN '0.00' ELSE CAST(CAST(v.rcpt_money AS DECIMAL(10,2)) AS CHAR) END AS payprice,
+  CASE WHEN v.rcpt_money IS NULL THEN '0.00' ELSE CAST(CAST(v.rcpt_money AS DECIMAL(10,2)) AS CHAR) END AS actualpay,
   COALESCE(DATE_FORMAT(q.update_datetime, '%%Y%%m%%d%%H%%i%%s'), '') AS d_update,
   COALESCE(o.hospsub, '')                                      AS hsub,
   COALESCE(pt.cid, '')                                         AS cid
@@ -153,7 +175,7 @@ ORDER BY o.vn
 DIAGNOSIS_OPD_SQL = """
 SELECT
   COALESCE((SELECT hospitalcode FROM opdconfig LIMIT 1), '')   AS hospcode,
-  CAST(COALESCE(ps.person_id, '') AS CHAR)                     AS pid,
+  COALESCE(LPAD(CAST(ps.person_id AS CHAR), 6, '0'), '')       AS pid,
   CAST(COALESCE(q.seq_id, '') AS CHAR)                         AS seq,
   COALESCE(DATE_FORMAT(o.vstdate, '%%Y%%m%%d'), '')            AS date_serv,
   COALESCE(d.diagtype, '')                                     AS diagtype,

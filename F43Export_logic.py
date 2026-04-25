@@ -10,50 +10,43 @@ import pymysql
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 from PyQt6.QtWidgets import QMessageBox
 
+from F43_queries import QUERIES
 from F43Export_ui import F43ExportUI
 from Setting_helper import load_db_settings
 
 
-TABLE_PREFIX = "tmp_exp_3090_"
-TEMP_DB_NAME = "temp"
-DATE_COLUMN = "date_serv"  # YYYYMMDD
-
-
-def _open_temp_connection() -> pymysql.connections.Connection:
-    """เปิด connection ไปที่ db `temp` ด้วยพารามิเตอร์ host/user/password ของ HIS"""
+def _open_his_connection() -> pymysql.connections.Connection:
+    """เปิด connection ไป HIS database ตามที่ตั้งค่าไว้ใน Settings (เช่น hos_07547)"""
     s = load_db_settings()
     return pymysql.connect(
         host=str(s["host"]) or "localhost",
         port=int(s["port"]),
         user=str(s["user"]),
         password=str(s["password"]),
-        database=TEMP_DB_NAME,
+        database=str(s["database"]),
         charset=str(s["charset"]) or "utf8mb4",
         cursorclass=pymysql.cursors.Cursor,
     )
-
-
-def _table_has_date_column(cursor, table: str) -> bool:
-    cursor.execute(
-        "SELECT 1 FROM information_schema.columns "
-        "WHERE table_schema = %s AND table_name = %s AND column_name = %s LIMIT 1",
-        (TEMP_DB_NAME, table, DATE_COLUMN),
-    )
-    return cursor.fetchone() is not None
 
 
 def _format_value(value) -> str:
     if value is None:
         return ""
     text = str(value)
-    # ป้องกัน delimiter / newline หลุดเข้าไปในไฟล์
     return text.replace("|", " ").replace("\r", " ").replace("\n", " ")
 
 
+def _to_iso_date(yyyymmdd: str) -> str:
+    """'20260425' → '2026-04-25' ใช้กับ DATE column ใน MySQL"""
+    if len(yyyymmdd) != 8 or not yyyymmdd.isdigit():
+        return yyyymmdd
+    return f"{yyyymmdd[0:4]}-{yyyymmdd[4:6]}-{yyyymmdd[6:8]}"
+
+
 class _ExportWorker(QObject):
-    progress = pyqtSignal(int, int, str)  # current, total, message
+    progress = pyqtSignal(int, int, str)
     log = pyqtSignal(str)
-    finished = pyqtSignal(int, int)  # success_count, failed_count
+    finished = pyqtSignal(int, int)
     failed = pyqtSignal(str)
 
     def __init__(
@@ -65,8 +58,8 @@ class _ExportWorker(QObject):
     ) -> None:
         super().__init__()
         self.files = files
-        self.date_from = date_from
-        self.date_to = date_to
+        self.date_from = date_from   # YYYYMMDD
+        self.date_to = date_to       # YYYYMMDD
         self.output_dir = output_dir
         self._cancel = False
 
@@ -75,10 +68,10 @@ class _ExportWorker(QObject):
 
     def run(self) -> None:
         try:
-            conn = _open_temp_connection()
+            conn = _open_his_connection()
         except Exception as exc:  # noqa: BLE001
             traceback.print_exc()
-            self.failed.emit(f"เชื่อมต่อ db `temp` ไม่สำเร็จ: {exc}")
+            self.failed.emit(f"เชื่อมต่อ HIS database ไม่สำเร็จ: {exc}")
             return
 
         try:
@@ -125,52 +118,28 @@ class _ExportWorker(QObject):
             self.finished.emit(success, failed)
 
     def _lookup_hospcode(self, conn) -> str:
-        """ดึง hospcode จากตาราง person — ใช้สร้างชื่อไฟล์ zip"""
+        """ดึง hospcode จาก opdconfig.hospitalcode"""
         with conn.cursor() as cursor:
             cursor.execute(
-                f"SELECT hospcode FROM `{TABLE_PREFIX}person` "
-                "WHERE hospcode IS NOT NULL AND hospcode <> '' LIMIT 1"
+                "SELECT hospitalcode FROM opdconfig "
+                "WHERE hospitalcode IS NOT NULL AND hospitalcode <> '' LIMIT 1"
             )
             row = cursor.fetchone()
             return str(row[0]).strip() if row and row[0] else ""
 
     def _export_one(self, conn, file_name: str, zf: zipfile.ZipFile, bundle_name: str) -> int:
-        table = f"{TABLE_PREFIX}{file_name.lower()}"
+        key = file_name.upper()
+        if key not in QUERIES:
+            raise RuntimeError(f"ยังไม่มี mapping สำหรับแฟ้ม {key}")
+
+        columns, sql = QUERIES[key]
+        date_from_iso = _to_iso_date(self.date_from)
+        date_to_iso = _to_iso_date(self.date_to)
+
         with conn.cursor() as cursor:
-            cursor.execute(
-                "SELECT 1 FROM information_schema.tables "
-                "WHERE table_schema = %s AND table_name = %s LIMIT 1",
-                (TEMP_DB_NAME, table),
-            )
-            if cursor.fetchone() is None:
-                raise RuntimeError(f"ไม่พบตาราง {table}")
-
-            has_date = _table_has_date_column(cursor, table)
-
-            # ดึงรายชื่อคอลัมน์ตามลำดับจริง
-            cursor.execute(
-                "SELECT column_name FROM information_schema.columns "
-                "WHERE table_schema = %s AND table_name = %s "
-                "ORDER BY ordinal_position",
-                (TEMP_DB_NAME, table),
-            )
-            columns = [row[0] for row in cursor.fetchall()]
-            col_list = ", ".join(f"`{c}`" for c in columns)
-
-            if has_date:
-                sql = (
-                    f"SELECT {col_list} FROM `{table}` "
-                    f"WHERE {DATE_COLUMN} BETWEEN %s AND %s"
-                )
-                params: tuple = (self.date_from, self.date_to)
-            else:
-                sql = f"SELECT {col_list} FROM `{table}`"
-                params = ()
-
-            cursor.execute(sql, params)
+            cursor.execute(sql, (date_from_iso, date_to_iso))
 
             buffer = io.StringIO()
-            # header แถวแรก — ชื่อฟิลด์ตัวพิมพ์ใหญ่ pipe-delimited
             buffer.write("|".join(c.upper() for c in columns) + "\n")
             count = 0
             while True:
@@ -193,11 +162,15 @@ class F43ExportWindow(F43ExportUI):
         self._thread: QThread | None = None
         self._worker: _ExportWorker | None = None
 
+        # default output folder = user's Desktop
+        desktop = Path.home() / "Desktop"
+        if desktop.is_dir():
+            self.output_path.setText(str(desktop))
+
         self.btn_browse.clicked.connect(self.browse_output_folder)
         self.btn_export.clicked.connect(self._on_export_clicked)
         self.btn_cancel.clicked.connect(self._on_cancel_clicked)
 
-    # ------------------------------------------------------------------ ui
     def _on_export_clicked(self) -> None:
         files = self.selected_files()
         if not files:

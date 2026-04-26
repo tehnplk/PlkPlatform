@@ -17,7 +17,7 @@ from F43Export_lib_zip import QUERIES_ZIP
 from F43Export_ui import F43ExportUI
 from Setting_helper import load_db_settings
 
-F43_DB_PATH = Path(__file__).parent / "F43.db"
+from F43_db_path import F43_DB_PATH
 
 
 def _open_his_connection() -> pymysql.connections.Connection:

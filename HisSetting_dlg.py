@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from pathlib import Path
 
@@ -83,7 +83,7 @@ class DlgHisSetting(QDialog):
         self._charset_label = "Charset"
         self.form_layout.addRow(self._charset_label, self.charset_input)
 
-        self.test_button = QPushButton("เธ—เธ”เธชเธญเธเธเธฒเธฃเน€เธเธทเนเธญเธกเธ•เนเธญ")
+        self.test_button = QPushButton("ทดสอบการเชื่อมต่อ")
         self.test_button.setStyleSheet(button_style("primary"))
         self.test_button.clicked.connect(self.test_connection)
 
@@ -213,15 +213,15 @@ class DlgHisSetting(QDialog):
         if missing:
             QMessageBox.warning(
                 self,
-                "เธเนเธญเธกเธนเธฅเนเธกเนเธเธฃเธ",
-                f"เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธเนเธฒเนเธซเนเธเธฃเธ: {', '.join(missing)}",
+                "ข้อมูลไม่ครบ",
+                f"กรุณากรอกข้อมูลให้ครบ: {', '.join(missing)}",
             )
             return None
 
         try:
             int(values["DB_PORT"])
         except ValueError:
-            QMessageBox.warning(self, "Port เนเธกเนเธ–เธนเธเธ•เนเธญเธ", "เธเธฃเธธเธ“เธฒเธเธฃเธญเธ DB_PORT เน€เธเนเธเธ•เธฑเธงเน€เธฅเธ")
+            QMessageBox.warning(self, "Port ไม่ถูกต้อง", "กรุณากรอก DB_PORT เป็นตัวเลข")
             return None
 
         return values
@@ -236,7 +236,7 @@ class DlgHisSetting(QDialog):
             if values["DB_TYPE"] == DB_TYPE_POSTGRES:
                 if psycopg2 is None:
                     raise RuntimeError(
-                        "เนเธกเนเธเธ psycopg2 (เธฃเธฑเธ `uv sync` เธซเธฃเธทเธญ `uv add psycopg2-binary`)"
+                        "ไม่พบ psycopg2 (รัน `uv sync` หรือ `uv add psycopg2-binary`)"
                     )
                 conn = psycopg2.connect(
                     host=values["DB_HOST"],
@@ -263,12 +263,12 @@ class DlgHisSetting(QDialog):
             print(f"[SettingsDialog.test_connection] error: {exc}")
             QMessageBox.critical(
                 self,
-                "เน€เธเธทเนเธญเธกเธ•เนเธญเนเธกเนเธชเธณเน€เธฃเนเธ",
-                f"เนเธกเนเธชเธฒเธกเธฒเธฃเธ–เน€เธเธทเนเธญเธกเธ•เนเธญ HIS เนเธ”เน\n{exc}",
+                "เชื่อมต่อไม่สำเร็จ",
+                f"ไม่สามารถเชื่อมต่อ HIS ได้\n{exc}",
             )
             return
 
-        QMessageBox.information(self, "เธชเธณเน€เธฃเนเธ", "เธ—เธ”เธชเธญเธเธเธฒเธฃเน€เธเธทเนเธญเธกเธ•เนเธญ HIS เธชเธณเน€เธฃเนเธ")
+        QMessageBox.information(self, "สำเร็จ", "ทดสอบการเชื่อมต่อ HIS สำเร็จ")
 
     def save_settings(self) -> None:
         values = self._validate()

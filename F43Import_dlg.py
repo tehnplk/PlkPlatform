@@ -8,7 +8,7 @@ import sqlite3
 import zipfile
 from pathlib import Path
 
-F43_DB_PATH = Path(__file__).parent / "F43.db"
+from F43_db_path import F43_DB_PATH
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (

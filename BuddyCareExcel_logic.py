@@ -236,7 +236,6 @@ def load_doctor_options(cursor) -> list[tuple[str, str]]:
     sql = (
         "SELECT code, name "
         "FROM doctor "
-        "WHERE TRIM(code) <> '' "
         "ORDER BY code"
     )
     cursor.execute(sql)

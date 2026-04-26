@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__windows-mcp__Shortcut",
+      "Read(//c/Users/Admin/Desktop/**)"
+    ]
+  }
+}

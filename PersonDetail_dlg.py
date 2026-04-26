@@ -5,6 +5,8 @@ from typing import Any
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QDialog, QFormLayout, QLabel, QVBoxLayout
 
+from Theme_helper import current_theme
+
 DETAIL_KEYS = (
     "pid",
     "hn",
@@ -49,6 +51,7 @@ def build_detail_rows(detail: dict[str, Any]) -> list[tuple[str, str]]:
 class DlgPersonDetail(QDialog):
     def __init__(self, detail: dict, parent=None) -> None:
         super().__init__(parent)
+        theme = current_theme()
         self.setWindowTitle("รายละเอียดบุคคล")
         self.setMinimumWidth(460)
 
@@ -63,21 +66,22 @@ class DlgPersonDetail(QDialog):
                 | Qt.TextInteractionFlag.TextSelectableByKeyboard
             )
             value_label.setStyleSheet(
-                "background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:6px 8px;"
+                f"background:{theme.surface}; color:{theme.text}; "
+                f"border:1px solid {theme.border}; border-radius:8px; padding:6px 8px;"
             )
             form.addRow(label, value_label)
 
         container = QVBoxLayout(self)
         container.addLayout(form)
         self.setStyleSheet(
-            """
-            QDialog {
-                background: #f1f5ff;
-            }
-            QLabel {
-                color: #0f172a;
+            f"""
+            QDialog {{
+                background: {theme.window};
+            }}
+            QLabel {{
+                color: {theme.text};
                 font-size: 13px;
                 font-weight: 600;
-            }
+            }}
             """
         )

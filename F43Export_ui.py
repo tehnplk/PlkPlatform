@@ -20,6 +20,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from Theme_helper import current_theme
+
 # 43 แฟ้มมาตรฐาน (ลบ prefix tmp_exp_3090_) — ตามตารางใน db `temp`
 ALL_FILES = [
     "ACCIDENT", "ADDRESS", "ADMISSION", "ANC", "APPOINTMENT", "CARD",
@@ -282,35 +284,38 @@ class F43ExportUI(QMainWindow):
         return directory
 
     def _apply_theme(self) -> None:
+        theme = current_theme()
         self.setStyleSheet(
-            """
-            QMainWindow { background: #f4f7f5; }
-            QGroupBox {
-                border: 1px solid #c4d6cc; border-radius: 6px;
+            f"""
+            QMainWindow {{ background: {theme.window}; }}
+            QGroupBox {{
+                border: 1px solid {theme.border}; border-radius: 6px;
                 margin-top: 10px; padding: 10px;
-                font-weight: 700; color: #1f5c3f;
-            }
-            QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }
-            QLabel { color: #1f5c3f; }
-            QLineEdit, QDateEdit, QTextEdit, QScrollArea {
-                border: 1px solid #c4d6cc; border-radius: 6px;
-                background: #ffffff;
-            }
-            QLineEdit, QDateEdit, QTextEdit { padding: 4px 8px; }
-            QLineEdit:focus, QDateEdit:focus { border: 1px solid #2f6b4c; }
-            QCheckBox { color: #1f5c3f; padding: 2px; }
-            QCheckBox:disabled { color: #98ada3; }
-            QPushButton {
-                background: #2f6b4c; color: #ffffff; border: none;
+                font-weight: 700; color: {theme.primary};
+            }}
+            QGroupBox::title {{ subcontrol-origin: margin; left: 10px; padding: 0 4px; }}
+            QLabel {{ color: {theme.primary}; }}
+            QLineEdit, QDateEdit, QTextEdit, QScrollArea, QComboBox {{
+                border: 1px solid {theme.border}; border-radius: 6px;
+                background: {theme.surface};
+                color: {theme.text};
+            }}
+            QLineEdit, QDateEdit, QTextEdit, QComboBox {{ padding: 4px 8px; }}
+            QLineEdit:focus, QDateEdit:focus, QComboBox:focus {{ border: 1px solid {theme.primary}; }}
+            QCheckBox {{ color: {theme.primary}; padding: 2px; }}
+            QCheckBox:disabled {{ color: {theme.disabled_text}; }}
+            QPushButton {{
+                background: {theme.primary}; color: {theme.primary_text}; border: none;
                 border-radius: 6px; padding: 6px 14px; font-weight: 600;
-            }
-            QPushButton:hover { background: #3b8a61; }
-            QPushButton:pressed { background: #255a3f; }
-            QPushButton:disabled { background: #9eb7ac; color: #eef2ef; }
-            QProgressBar {
-                border: 1px solid #c4d6cc; border-radius: 6px;
-                text-align: center; background: #ffffff;
-            }
-            QProgressBar::chunk { background: #2f6b4c; border-radius: 5px; }
+            }}
+            QPushButton:hover {{ background: {theme.primary_hover}; }}
+            QPushButton:pressed {{ background: {theme.primary_pressed}; }}
+            QPushButton:disabled {{ background: {theme.disabled}; color: {theme.disabled_text}; }}
+            QProgressBar {{
+                border: 1px solid {theme.border}; border-radius: 6px;
+                text-align: center; background: {theme.surface};
+                color: {theme.text};
+            }}
+            QProgressBar::chunk {{ background: {theme.primary}; border-radius: 5px; }}
             """
         )

@@ -15,6 +15,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from Theme_helper import current_theme
+
 
 class DataCenterUI(QMainWindow):
     headers = ["ลำดับ", "รหัส", "ชื่อชุดข้อมูล", "หมวดหมู่", "แหล่งข้อมูล", "จำนวนรายการ", "อัปเดตล่าสุด", "ประมวลผล", "Export", "Action"]
@@ -40,7 +42,10 @@ class DataCenterUI(QMainWindow):
         self.btn_refresh.setMinimumHeight(35)
         self.btn_refresh.setMaximumHeight(35)
 
-        toolbar_label_style = "font-size: 14px; color: #1e3a8a; font-weight: 800; padding: 0 4px;"
+        theme = current_theme()
+        toolbar_label_style = (
+            f"font-size: 14px; color: {theme.accent}; font-weight: 800; padding: 0 4px;"
+        )
         self.search_label.setStyleSheet(toolbar_label_style)
 
         top_bar = QHBoxLayout()
@@ -52,7 +57,7 @@ class DataCenterUI(QMainWindow):
 
         self.summary_label = QLabel("ยังไม่มีข้อมูล")
         self.summary_label.setStyleSheet(
-            "color: #1f5c3f; font-size: 13px; font-weight: 700; padding: 6px 10px;"
+            f"color: {theme.primary}; font-size: 13px; font-weight: 700; padding: 6px 10px;"
         )
 
         self.table_view = QTableView()
@@ -79,47 +84,50 @@ class DataCenterUI(QMainWindow):
         self.status_bar.showMessage("พร้อมใช้งาน")
 
         self.setStyleSheet(
-            """
-            QMainWindow { background: #eefaf3; }
-            QLineEdit {
-                border: 1px solid #a7dabc;
+            f"""
+            QMainWindow {{ background: {theme.window}; }}
+            QLineEdit {{
+                border: 1px solid {theme.border};
                 border-radius: 6px;
                 padding: 4px 8px;
-                background: #ffffff;
+                background: {theme.surface};
+                color: {theme.text};
                 font-size: 13px;
-            }
-            QPushButton {
-                background: #ffffff;
-                border: 1px solid #a7dabc;
+            }}
+            QLineEdit:focus {{ border: 1px solid {theme.primary}; }}
+            QPushButton {{
+                background: {theme.surface};
+                border: 1px solid {theme.border};
                 border-radius: 8px;
                 padding: 4px 14px;
                 font-size: 13px;
                 font-weight: 700;
-                color: #2f6b4c;
-            }
-            QPushButton:hover { background: #edf9f1; }
-            QPushButton:pressed { background: #d8f4e4; }
-            QTableView {
-                background: #ffffff;
-                alternate-background-color: #f3fbf6;
-                gridline-color: #cfe8d9;
-                selection-background-color: #bfe6cf;
-                selection-color: #1f5c3f;
+                color: {theme.primary};
+            }}
+            QPushButton:hover {{ background: {theme.surface_alt}; }}
+            QPushButton:pressed {{ background: {theme.primary_soft}; }}
+            QTableView {{
+                background: {theme.surface};
+                alternate-background-color: {theme.surface_alt};
+                color: {theme.text};
+                gridline-color: {theme.grid};
+                selection-background-color: {theme.selection};
+                selection-color: {theme.selection_text};
                 font-size: 13px;
-            }
-            QHeaderView::section {
-                background: #c8f0d8;
-                color: #1f5c3f;
+            }}
+            QHeaderView::section {{
+                background: {theme.surface_muted};
+                color: {theme.primary};
                 padding: 6px;
                 border: 0;
-                border-right: 1px solid #9fdbb9;
+                border-right: 1px solid {theme.border};
                 font-weight: 800;
-            }
-            QStatusBar {
-                background: #d8f4e4;
-                color: #2f6b4c;
-                border-top: 1px solid #9fdbb9;
+            }}
+            QStatusBar {{
+                background: {theme.surface_muted};
+                color: {theme.primary};
+                border-top: 1px solid {theme.border};
                 font-weight: 600;
-            }
+            }}
             """
         )

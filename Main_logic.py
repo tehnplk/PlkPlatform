@@ -15,6 +15,7 @@ from HisSetting_dlg import DlgHisSetting
 from Main_ui import MainUI
 from QuickVisit_logic import QuickVisitWindow
 from TelemedDaily_ui import TelemedDailyWindow
+from Theme_helper import apply_application_palette
 
 
 def resolve_app_path(relative_path: str) -> Path:
@@ -211,6 +212,7 @@ class MainWindow(MainUI):
 
 def main() -> None:
     app = QApplication(sys.argv)
+    apply_application_palette(app)
     icon_path = resolve_app_path("icon.ico")
     if icon_path.exists():
         app.setWindowIcon(QIcon(str(icon_path)))

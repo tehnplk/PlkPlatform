@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 
@@ -29,6 +29,7 @@ from Setting_helper import (
     save_settings,
 )
 from His_factory import reset_his
+from Theme_helper import button_style, current_theme
 
 DB_TYPE_MYSQL = "mysql"
 DB_TYPE_POSTGRES = "postgres"
@@ -47,6 +48,7 @@ class DlgHisSetting(QDialog):
         self.setWindowTitle("HIS Connection Setting")
         self.setModal(True)
         self.resize(460, 300)
+        self._apply_theme()
 
         self.db_type_combo = QComboBox()
         self.db_type_combo.addItem("MySQL", DB_TYPE_MYSQL)
@@ -81,7 +83,8 @@ class DlgHisSetting(QDialog):
         self._charset_label = "Charset"
         self.form_layout.addRow(self._charset_label, self.charset_input)
 
-        self.test_button = QPushButton("ทดสอบการเชื่อมต่อ")
+        self.test_button = QPushButton("เธ—เธ”เธชเธญเธเธเธฒเธฃเน€เธเธทเนเธญเธกเธ•เนเธญ")
+        self.test_button.setStyleSheet(button_style("primary"))
         self.test_button.clicked.connect(self.test_connection)
 
         button_box = QDialogButtonBox(
@@ -101,6 +104,41 @@ class DlgHisSetting(QDialog):
         layout.addLayout(action_row)
 
         self.load_settings()
+
+    def _apply_theme(self) -> None:
+        theme = current_theme()
+        self.setStyleSheet(
+            f"""
+            QDialog {{
+                background: {theme.window};
+            }}
+            QLabel {{
+                color: {theme.text};
+                font-weight: 600;
+            }}
+            QLineEdit, QComboBox {{
+                background: {theme.surface};
+                color: {theme.text};
+                border: 1px solid {theme.border};
+                border-radius: 6px;
+                padding: 6px 8px;
+            }}
+            QLineEdit:focus, QComboBox:focus {{
+                border: 1px solid {theme.primary};
+            }}
+            QDialogButtonBox QPushButton {{
+                background: {theme.surface};
+                color: {theme.primary};
+                border: 1px solid {theme.border};
+                border-radius: 6px;
+                padding: 6px 12px;
+                font-weight: 600;
+            }}
+            QDialogButtonBox QPushButton:hover {{
+                background: {theme.surface_alt};
+            }}
+            """
+        )
 
     # ------------------------------------------------------------------ helpers
     def _current_db_type(self) -> str:
@@ -175,15 +213,15 @@ class DlgHisSetting(QDialog):
         if missing:
             QMessageBox.warning(
                 self,
-                "ข้อมูลไม่ครบ",
-                f"กรุณากรอกค่าให้ครบ: {', '.join(missing)}",
+                "เธเนเธญเธกเธนเธฅเนเธกเนเธเธฃเธ",
+                f"เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธเนเธฒเนเธซเนเธเธฃเธ: {', '.join(missing)}",
             )
             return None
 
         try:
             int(values["DB_PORT"])
         except ValueError:
-            QMessageBox.warning(self, "Port ไม่ถูกต้อง", "กรุณากรอก DB_PORT เป็นตัวเลข")
+            QMessageBox.warning(self, "Port เนเธกเนเธ–เธนเธเธ•เนเธญเธ", "เธเธฃเธธเธ“เธฒเธเธฃเธญเธ DB_PORT เน€เธเนเธเธ•เธฑเธงเน€เธฅเธ")
             return None
 
         return values
@@ -198,7 +236,7 @@ class DlgHisSetting(QDialog):
             if values["DB_TYPE"] == DB_TYPE_POSTGRES:
                 if psycopg2 is None:
                     raise RuntimeError(
-                        "ไม่พบ psycopg2 (รัน `uv sync` หรือ `uv add psycopg2-binary`)"
+                        "เนเธกเนเธเธ psycopg2 (เธฃเธฑเธ `uv sync` เธซเธฃเธทเธญ `uv add psycopg2-binary`)"
                     )
                 conn = psycopg2.connect(
                     host=values["DB_HOST"],
@@ -225,12 +263,12 @@ class DlgHisSetting(QDialog):
             print(f"[SettingsDialog.test_connection] error: {exc}")
             QMessageBox.critical(
                 self,
-                "เชื่อมต่อไม่สำเร็จ",
-                f"ไม่สามารถเชื่อมต่อ HIS ได้\n{exc}",
+                "เน€เธเธทเนเธญเธกเธ•เนเธญเนเธกเนเธชเธณเน€เธฃเนเธ",
+                f"เนเธกเนเธชเธฒเธกเธฒเธฃเธ–เน€เธเธทเนเธญเธกเธ•เนเธญ HIS เนเธ”เน\n{exc}",
             )
             return
 
-        QMessageBox.information(self, "สำเร็จ", "ทดสอบการเชื่อมต่อ HIS สำเร็จ")
+        QMessageBox.information(self, "เธชเธณเน€เธฃเนเธ", "เธ—เธ”เธชเธญเธเธเธฒเธฃเน€เธเธทเนเธญเธกเธ•เนเธญ HIS เธชเธณเน€เธฃเนเธ")
 
     def save_settings(self) -> None:
         values = self._validate()

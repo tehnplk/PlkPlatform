@@ -26,6 +26,8 @@ from PyQt6.QtWidgets import (
 from urllib import error as urlerror
 from urllib import request as urlrequest
 
+from Theme_helper import button_style, current_theme, message_box_style
+
 
 class TelemedDailyWindow(QMainWindow):
     """หน้าต่างสำหรับโมดูล อัพเดทTelemed Daily"""
@@ -53,29 +55,13 @@ class TelemedDailyWindow(QMainWindow):
         header_layout = QHBoxLayout()
         
         self.file_label = QLabel("ยังไม่ได้เลือกไฟล์")
-        self.file_label.setStyleSheet("font-size: 12px; color: #666;")
+        theme = current_theme()
+        self.file_label.setStyleSheet(f"font-size: 12px; color: {theme.text_muted};")
         
         self.upload_button = QPushButton("เลือกไฟล์ .zip")
         self.upload_button.setMinimumWidth(150)
         self.upload_button.clicked.connect(self.on_upload_file)
-        self.upload_button.setStyleSheet(
-            """
-            QPushButton {
-                background: #2f6b4c;
-                color: #ffffff;
-                border: none;
-                border-radius: 6px;
-                padding: 8px 16px;
-                font-weight: 600;
-            }
-            QPushButton:hover {
-                background: #3b8a61;
-            }
-            QPushButton:pressed {
-                background: #255a3f;
-            }
-            """
-        )
+        self.upload_button.setStyleSheet(button_style("primary"))
         
         header_layout.addWidget(QLabel("ไฟล์ที่เลือก:"))
         header_layout.addWidget(self.file_label, 1)
@@ -85,7 +71,7 @@ class TelemedDailyWindow(QMainWindow):
         
         # Table section
         table_label = QLabel("ข้อมูลทะเบียน")
-        table_label.setStyleSheet("font-weight: 600; color: #1f5c3f;")
+        table_label.setStyleSheet(f"font-weight: 600; color: {theme.primary};")
         main_layout.addWidget(table_label)
         
         self.model = QStandardItemModel()
@@ -105,28 +91,7 @@ class TelemedDailyWindow(QMainWindow):
         self.send_button.setMinimumWidth(150)
         self.send_button.setEnabled(False)  # Disabled until data is loaded
         self.send_button.clicked.connect(self.on_send_data)
-        self.send_button.setStyleSheet(
-            """
-            QPushButton {
-                background: #dc3545;
-                color: #ffffff;
-                border: none;
-                border-radius: 6px;
-                padding: 8px 16px;
-                font-weight: 600;
-            }
-            QPushButton:hover {
-                background: #c82333;
-            }
-            QPushButton:pressed {
-                background: #a02622;
-            }
-            QPushButton:disabled {
-                background: #cccccc;
-                color: #666666;
-            }
-            """
-        )
+        self.send_button.setStyleSheet(button_style("danger"))
         
         action_layout.addStretch()
         action_layout.addWidget(self.send_button)
@@ -138,51 +103,56 @@ class TelemedDailyWindow(QMainWindow):
         self.statusBar().showMessage("พร้อมอัพโหลดไฟล์")
 
     def _apply_theme(self) -> None:
+        theme = current_theme()
         self.setStyleSheet(
-            """
-            QMainWindow {
-                background: #eefaf3;
-            }
-            QTableView {
-                background: #ffffff;
-                color: #000000;
-                alternate-background-color: #f0faf6;
-                gridline-color: #d0e8df;
-                border: 1px solid #a7dabc;
+            f"""
+            QMainWindow {{
+                background: {theme.window};
+            }}
+            QTableView {{
+                background: {theme.surface};
+                color: {theme.text};
+                alternate-background-color: {theme.surface_alt};
+                gridline-color: {theme.grid};
+                border: 1px solid {theme.border};
                 border-radius: 4px;
-            }
-            QTableView::item {
-                color: #000000;
+            }}
+            QTableView::item {{
+                color: {theme.text};
                 padding: 4px;
-            }
-            QTableView::item:selected {
-                background: #c8f0d8;
-                color: #1f5c3f;
-            }
-            QHeaderView::section {
-                background: #d8f4e4;
-                color: #1f5c3f;
+            }}
+            QTableView::item:selected {{
+                background: {theme.selection};
+                color: {theme.selection_text};
+            }}
+            QHeaderView::section {{
+                background: {theme.surface_muted};
+                color: {theme.primary};
                 padding: 5px;
-                border: 1px solid #a7dabc;
+                border: 1px solid {theme.border};
                 font-weight: 600;
-            }
-            QPushButton {
-                background: #8ed1ad;
-                color: #ffffff;
+            }}
+            QPushButton {{
+                background: {theme.primary};
+                color: {theme.primary_text};
                 border: none;
                 border-radius: 6px;
                 padding: 8px 16px;
                 font-weight: 600;
-            }
-            QPushButton:hover {
-                background: #7bc89c;
-            }
-            QPushButton:pressed {
-                background: #6dbf8b;
-            }
-            QLabel {
-                color: #2f6b4c;
-            }
+            }}
+            QPushButton:hover {{
+                background: {theme.primary_hover};
+            }}
+            QPushButton:pressed {{
+                background: {theme.primary_pressed};
+            }}
+            QPushButton:disabled {{
+                background: {theme.disabled};
+                color: {theme.disabled_text};
+            }}
+            QLabel {{
+                color: {theme.primary};
+            }}
             """
         )
 
@@ -431,7 +401,7 @@ class TelemedDailyWindow(QMainWindow):
             msg.setIcon(QMessageBox.Icon.Information)
             msg.setWindowTitle("ส่งข้อมูลเข้าจังหวัด")
             msg.setText(f"ส่งข้อมูล {sent_count} รายการสำเร็จ")
-            msg.setStyleSheet("QLabel { color: white; } QMessageBox { background-color: #2f6b4c; }")
+            msg.setStyleSheet(message_box_style("primary"))
             msg.exec()
         else:
             self.statusBar().showMessage("ส่งข้อมูลเข้าจังหวัดไม่สำเร็จ", 5000)
@@ -439,7 +409,7 @@ class TelemedDailyWindow(QMainWindow):
             msg.setIcon(QMessageBox.Icon.Critical)
             msg.setWindowTitle("ส่งข้อมูลเข้าจังหวัด")
             msg.setText(f"HTTP {status_code}\n\n{json.dumps(parsed, ensure_ascii=False, indent=2)}")
-            msg.setStyleSheet("QLabel { color: white; } QMessageBox { background-color: #dc3545; }")
+            msg.setStyleSheet(message_box_style("danger"))
             msg.exec()
         
         self.send_button.setEnabled(True)

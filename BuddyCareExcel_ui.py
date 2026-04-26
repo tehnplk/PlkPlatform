@@ -20,6 +20,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from Theme_helper import current_theme
+
 
 class BuddyCareExcelUI(QMainWindow):
     headers = ["ลำดับ", "เลือก", "วันที่ xls", "วันที่ hos", "คำนำหน้า", "ชื่อ", "นามสกุล", "สถานะ", "Reason", "CID", "VN", "VST_TYPE"]
@@ -71,7 +73,10 @@ class BuddyCareExcelUI(QMainWindow):
         self.btn_choose.setMinimumHeight(35)
         self.btn_choose.setMaximumHeight(35)
 
-        toolbar_label_style = "font-size: 14px; color: #1e3a8a; font-weight: 800; padding: 0 4px;"
+        theme = current_theme()
+        toolbar_label_style = (
+            f"font-size: 14px; color: {theme.accent}; font-weight: 800; padding: 0 4px;"
+        )
         self.status_label.setStyleSheet(toolbar_label_style)
         self.date_label.setStyleSheet(toolbar_label_style)
         self.date_filter.setMinimumHeight(35)
@@ -99,7 +104,7 @@ class BuddyCareExcelUI(QMainWindow):
         self.lookup_result_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lookup_result_label.setMinimumHeight(36)
         self.lookup_result_label.setStyleSheet(
-            "color: #166534; font-size: 14px; font-weight: 700;"
+            f"color: {theme.primary}; font-size: 14px; font-weight: 700;"
         )
 
         self.progress_bar = QProgressBar()
@@ -163,98 +168,99 @@ class BuddyCareExcelUI(QMainWindow):
         self.apply_modern_theme()
 
     def apply_modern_theme(self) -> None:
+        theme = current_theme()
         self.setStyleSheet(
-            """
-            QMainWindow {
-                background: #f4f7ff;
-            }
-            QProgressBar {
-                border: 1px solid #cbd5e1;
+            f"""
+            QMainWindow {{
+                background: {theme.window};
+            }}
+            QProgressBar {{
+                border: 1px solid {theme.border};
                 border-radius: 8px;
-                background: #e2e8f0;
+                background: {theme.surface_muted};
                 text-align: center;
-                color: #0f172a;
+                color: {theme.text};
                 font-weight: 700;
                 min-height: 22px;
-            }
-            QProgressBar::chunk {
+            }}
+            QProgressBar::chunk {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #22c55e, stop:1 #16a34a);
+                    stop:0 {theme.primary_hover}, stop:1 {theme.primary});
                 border-radius: 7px;
-            }
-            QToolBar {
+            }}
+            QToolBar {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #dbeafe, stop:1 #bfdbfe);
-                border: 1px solid #93c5fd;
+                    stop:0 {theme.toolbar_start}, stop:1 {theme.toolbar_end});
+                border: 1px solid {theme.border};
                 border-radius: 12px;
                 padding: 4px 12px;
-            }
-            QLabel {
-                color: #0f172a;
+            }}
+            QLabel {{
+                color: {theme.text};
                 font-size: 14px;
                 font-weight: 600;
-            }
-            QCheckBox {
-                color: #0f172a;
+            }}
+            QCheckBox {{
+                color: {theme.text};
                 font-size: 15px;
                 font-weight: 700;
                 spacing: 10px;
                 padding: 4px 2px;
-            }
-            QCheckBox::indicator {
+            }}
+            QCheckBox::indicator {{
                 width: 20px;
                 height: 20px;
-            }
-            QPushButton {
+            }}
+            QPushButton {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #2563eb, stop:1 #0284c7);
+                    stop:0 {theme.accent}, stop:1 {theme.primary});
                 color: #ffffff;
                 border: none;
                 border-radius: 10px;
                 padding: 8px 16px;
                 font-size: 14px;
                 font-weight: 700;
-            }
-            QPushButton:hover {
+            }}
+            QPushButton:hover {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #1d4ed8, stop:1 #0369a1);
-            }
-            QPushButton:disabled {
-                background: #94a3b8;
-                color: #e2e8f0;
-            }
-            QComboBox {
-                background: #ffffff;
-                color: #0f172a;
-                border: 2px solid #bfdbfe;
+                    stop:0 {theme.accent_hover}, stop:1 {theme.primary_hover});
+            }}
+            QPushButton:disabled {{
+                background: {theme.disabled};
+                color: {theme.disabled_text};
+            }}
+            QComboBox {{
+                background: {theme.surface};
+                color: {theme.text};
+                border: 2px solid {theme.border};
                 border-radius: 10px;
                 padding: 6px 10px;
                 font-size: 14px;
                 font-weight: 600;
-            }
-            QComboBox::drop-down {
+            }}
+            QComboBox::drop-down {{
                 border: none;
                 width: 24px;
-            }
-            QTableView {
-                background: #ffffff;
-                alternate-background-color: #eff6ff;
-                border: 1px solid #cbd5e1;
+            }}
+            QTableView {{
+                background: {theme.surface};
+                alternate-background-color: {theme.surface_alt};
+                border: 1px solid {theme.border};
                 border-radius: 12px;
-                color: #0f172a;
+                color: {theme.text};
                 font-size: 13px;
-                selection-background-color: #bfdbfe;
-                selection-color: #0f172a;
-            }
-            QHeaderView::section {
-                background: #dbeafe;
-                color: #1e3a8a;
+                selection-background-color: {theme.selection};
+                selection-color: {theme.selection_text};
+            }}
+            QHeaderView::section {{
+                background: {theme.surface_muted};
+                color: {theme.primary};
                 border: none;
-                border-bottom: 1px solid #bfdbfe;
+                border-bottom: 1px solid {theme.border};
                 padding: 8px;
                 font-size: 13px;
                 font-weight: 700;
-            }
+            }}
             """
         )
 

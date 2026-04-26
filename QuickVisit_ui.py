@@ -15,6 +15,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from Theme_helper import current_theme
+
 
 RESULT_COLUMNS = [
     ("HN", "hn"),
@@ -81,7 +83,6 @@ class QuickVisitUI(QMainWindow):
         # --- Footer action row ----------------------------------------
         footer = QHBoxLayout()
         self.status_label = QLabel("")
-        self.status_label.setStyleSheet("color: #555; font-size: 12px;")
         footer.addWidget(self.status_label, 1)
 
         self.open_visit_button = QPushButton("เปิด Visit")
@@ -94,44 +95,48 @@ class QuickVisitUI(QMainWindow):
 
     # ---------------------------------------------------------------- theme
     def _apply_theme(self) -> None:
+        theme = current_theme()
+        self.status_label.setStyleSheet(f"color: {theme.text_muted}; font-size: 12px;")
         self.setStyleSheet(
-            """
-            QMainWindow { background: #f4f7f5; }
-            QLabel { color: #1f5c3f; }
-            QLineEdit, QComboBox {
-                border: 1px solid #c4d6cc;
+            f"""
+            QMainWindow {{ background: {theme.window}; }}
+            QLabel {{ color: {theme.primary}; }}
+            QLineEdit, QComboBox {{
+                border: 1px solid {theme.border};
                 border-radius: 6px;
                 padding: 4px 8px;
-                background: #ffffff;
-            }
-            QLineEdit:focus, QComboBox:focus {
-                border: 1px solid #2f6b4c;
-            }
-            QPushButton {
-                background: #2f6b4c;
-                color: #ffffff;
+                background: {theme.surface};
+                color: {theme.text};
+            }}
+            QLineEdit:focus, QComboBox:focus {{
+                border: 1px solid {theme.primary};
+            }}
+            QPushButton {{
+                background: {theme.primary};
+                color: {theme.primary_text};
                 border: none;
                 border-radius: 6px;
                 padding: 6px 14px;
                 font-weight: 600;
-            }
-            QPushButton:hover { background: #3b8a61; }
-            QPushButton:pressed { background: #255a3f; }
-            QPushButton:disabled { background: #9eb7ac; color: #eef2ef; }
-            QTableView {
-                background: #ffffff;
-                alternate-background-color: #f1f6f3;
-                gridline-color: #d7e3dc;
-                selection-background-color: #2f6b4c;
+            }}
+            QPushButton:hover {{ background: {theme.primary_hover}; }}
+            QPushButton:pressed {{ background: {theme.primary_pressed}; }}
+            QPushButton:disabled {{ background: {theme.disabled}; color: {theme.disabled_text}; }}
+            QTableView {{
+                background: {theme.surface};
+                alternate-background-color: {theme.surface_alt};
+                color: {theme.text};
+                gridline-color: {theme.grid};
+                selection-background-color: {theme.primary};
                 selection-color: #ffffff;
-                border: 1px solid #c4d6cc;
+                border: 1px solid {theme.border};
                 border-radius: 6px;
-            }
-            QHeaderView::section {
-                background: #1f5c3f;
-                color: #ffffff;
+            }}
+            QHeaderView::section {{
+                background: {theme.primary};
+                color: {theme.primary_text};
                 padding: 6px;
                 border: none;
-            }
+            }}
             """
         )

@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 )
 
 from DataCenter_ui import DataCenterUI
+from Theme_helper import button_style
 from Setting_helper import get_settings, read_setting
 from His_factory import make_his
 
@@ -199,20 +200,7 @@ class DataCenterWindow(DataCenterUI):
 
         button = QPushButton("ดึงข้อมูล")
         button.setCursor(Qt.CursorShape.PointingHandCursor)
-        button.setStyleSheet(
-            """
-            QPushButton {
-                background: #b45309;
-                color: #ffffff;
-                border: none;
-                border-radius: 6px;
-                padding: 4px 12px;
-                font-weight: 700;
-            }
-            QPushButton:hover { background: #d97706; }
-            QPushButton:pressed { background: #92400e; }
-            """
-        )
+        button.setStyleSheet(button_style("warning"))
         button.clicked.connect(lambda _=False, ds=dataset: self.fetch_dataset(ds))
 
         layout.addWidget(button)
@@ -226,20 +214,7 @@ class DataCenterWindow(DataCenterUI):
 
         button = QPushButton("ส่งออก XLSX")
         button.setCursor(Qt.CursorShape.PointingHandCursor)
-        button.setStyleSheet(
-            """
-            QPushButton {
-                background: #1e3a8a;
-                color: #ffffff;
-                border: none;
-                border-radius: 6px;
-                padding: 4px 12px;
-                font-weight: 700;
-            }
-            QPushButton:hover { background: #2a4fb3; }
-            QPushButton:pressed { background: #18306f; }
-            """
-        )
+        button.setStyleSheet(button_style("accent"))
         button.clicked.connect(lambda _=False, ds=dataset: self.export_dataset(ds))
 
         layout.addWidget(button)
@@ -286,20 +261,7 @@ class DataCenterWindow(DataCenterUI):
 
         button = QPushButton("จัดส่ง")
         button.setCursor(Qt.CursorShape.PointingHandCursor)
-        button.setStyleSheet(
-            """
-            QPushButton {
-                background: #2f6b4c;
-                color: #ffffff;
-                border: none;
-                border-radius: 6px;
-                padding: 4px 12px;
-                font-weight: 700;
-            }
-            QPushButton:hover { background: #3b8a61; }
-            QPushButton:pressed { background: #255a3f; }
-            """
-        )
+        button.setStyleSheet(button_style("primary"))
         button.clicked.connect(lambda _=False, ds=dataset: self.send_dataset(ds))
 
         layout.addWidget(button)

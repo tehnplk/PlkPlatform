@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 )
 
 from version import RELEASE, VERSION
+from Theme_helper import current_theme, rgb_csv
 
 
 class WindowTitleBar(QWidget):
@@ -64,7 +65,7 @@ class MainUI(QMainWindow):
 
         self.mdi_area = QMdiArea()
         self.mdi_area.setObjectName("mdi_area")
-        self.mdi_area.setBackground(QColor("#dff7ea"))
+        self.mdi_area.setBackground(QColor(current_theme().mdi_end))
         self.setCentralWidget(self.mdi_area)
 
         self._create_actions()
@@ -76,7 +77,7 @@ class MainUI(QMainWindow):
         self.statusBar().showMessage("พร้อมใช้งาน")
         self._version_label = QLabel(f"Version {VERSION}  •  Release {RELEASE}")
         self._version_label.setStyleSheet(
-            "color: #1f5c3f; font-weight: 700; padding: 0 10px;"
+            f"color: {current_theme().primary}; font-weight: 700; padding: 0 10px;"
         )
         self.statusBar().addPermanentWidget(self._version_label)
         self._update_maximize_button()
@@ -95,97 +96,99 @@ class MainUI(QMainWindow):
             self._update_maximize_button()
 
     def _apply_main_theme(self) -> None:
+        theme = current_theme()
+        primary_rgb = rgb_csv(theme.primary)
         self.setStyleSheet(
-            """
-            QMainWindow {
-                background: #eefaf3;
-                border: 1px solid #8ed1ad;
-            }
-            QWidget#window_chrome {
+            f"""
+            QMainWindow {{
+                background: {theme.window};
+                border: 1px solid {theme.border};
+            }}
+            QWidget#window_chrome {{
                 background: transparent;
-            }
-            QWidget#title_bar {
+            }}
+            QWidget#title_bar {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #b7ebcd, stop:1 #8fdcb2);
+                    stop:0 {theme.title_start}, stop:1 {theme.title_end});
                 border-top-left-radius: 12px;
                 border-top-right-radius: 12px;
-            }
-            QLabel#window_title {
-                color: #1f5c3f;
+            }}
+            QLabel#window_title {{
+                color: {theme.text};
                 font-size: 15px;
                 font-weight: 700;
                 padding: 0 10px;
-            }
-            QLabel#window_icon {
+            }}
+            QLabel#window_icon {{
                 background: transparent;
                 padding: 0;
-            }
-            QWidget#menu_strip {
+            }}
+            QWidget#menu_strip {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #d8f4e4, stop:1 #beeccf);
-                border-bottom: 1px solid #9fdbb9;
-            }
-            QToolButton#menu_button {
+                    stop:0 {theme.surface_muted}, stop:1 {theme.primary_soft});
+                border-bottom: 1px solid {theme.border};
+            }}
+            QToolButton#menu_button {{
                 background: transparent;
-                color: #2f6b4c;
+                color: {theme.primary};
                 border: none;
                 padding: 6px 12px;
                 font-size: 13px;
                 font-weight: 700;
-            }
-            QToolButton#menu_button:hover {
-                background: rgba(47, 107, 76, 0.10);
-            }
-            QToolButton#window_control, QToolButton#close_button {
-                background: rgba(255, 255, 255, 0.55);
-                color: #2c6a4a;
-                border: 1px solid rgba(63, 122, 84, 0.18);
+            }}
+            QToolButton#menu_button:hover {{
+                background: rgba({primary_rgb}, 0.16);
+            }}
+            QToolButton#window_control, QToolButton#close_button {{
+                background: {theme.surface_alt};
+                color: {theme.primary};
+                border: 1px solid {theme.border};
                 border-radius: 8px;
                 font-size: 15px;
                 font-weight: 800;
                 padding-bottom: 1px;
-            }
-            QToolButton#window_control:hover {
-                background: rgba(255, 255, 255, 0.80);
-            }
-            QToolButton#window_control:pressed {
-                background: rgba(212, 242, 224, 0.95);
-            }
-            QToolButton#close_button:hover {
-                background: #dc2626;
+            }}
+            QToolButton#window_control:hover {{
+                background: {theme.surface};
+            }}
+            QToolButton#window_control:pressed {{
+                background: {theme.primary_soft};
+            }}
+            QToolButton#close_button:hover {{
+                background: {theme.danger};
                 color: #ffffff;
-            }
-            QToolButton#close_button:pressed {
-                background: #b91c1c;
-            }
-            QMenu {
-                background: #f7fdf9;
-                color: #24553a;
-                border: 1px solid #a7dabc;
+            }}
+            QToolButton#close_button:pressed {{
+                background: {theme.danger_pressed};
+            }}
+            QMenu {{
+                background: {theme.surface};
+                color: {theme.text};
+                border: 1px solid {theme.border};
                 padding: 6px;
-            }
-            QMenu::item {
+            }}
+            QMenu::item {{
                 padding: 8px 18px;
                 border-radius: 8px;
-            }
-            QMenu::item:selected {
-                background: #d8f4e4;
-            }
-            QStatusBar#main_statusbar {
-                background: #d8f4e4;
-                color: #2f6b4c;
-                border-top: 1px solid #9fdbb9;
+            }}
+            QMenu::item:selected {{
+                background: {theme.primary_soft};
+            }}
+            QStatusBar#main_statusbar {{
+                background: {theme.surface_muted};
+                color: {theme.primary};
+                border-top: 1px solid {theme.border};
                 font-size: 12px;
                 font-weight: 600;
-            }
-            QStatusBar::item {
+            }}
+            QStatusBar::item {{
                 border: none;
-            }
-            QMdiArea#mdi_area {
+            }}
+            QMdiArea#mdi_area {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                    stop:0 #eefaf3, stop:1 #dff7ea);
+                    stop:0 {theme.mdi_start}, stop:1 {theme.mdi_end});
                 border: none;
-            }
+            }}
         """
         )
 
@@ -391,6 +394,7 @@ class MainUI(QMainWindow):
         return base_path / relative_path
 
     def _build_toolbar(self) -> None:
+        theme = current_theme()
         self.main_toolbar = QToolBar("Main Toolbar", self)
         self.main_toolbar.setObjectName("main_toolbar")
         self.main_toolbar.setMovable(False)
@@ -398,30 +402,30 @@ class MainUI(QMainWindow):
         self.main_toolbar.setAllowedAreas(Qt.ToolBarArea.TopToolBarArea)
         self.main_toolbar.setIconSize(QSize(24, 24))
         self.main_toolbar.setStyleSheet(
-            """
-            QToolBar {
+            f"""
+            QToolBar {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #c8f0d8, stop:1 #9be0bb);
+                    stop:0 {theme.toolbar_start}, stop:1 {theme.toolbar_end});
                 border: none;
-                border-bottom: 1px solid #9fdbb9;
+                border-bottom: 1px solid {theme.border};
                 spacing: 10px;
                 padding: 3px 10px;
-            }
-            QToolButton {
-                background: #ffffff;
-                border: 1px solid #a7dabc;
+            }}
+            QToolButton {{
+                background: {theme.surface};
+                border: 1px solid {theme.border};
                 border-radius: 8px;
                 padding: 3px 8px;
                 font-size: 12px;
                 font-weight: 600;
-                color: #2f6b4c;
-            }
-            QToolButton:hover {
-                background: #edf9f1;
-            }
-            QToolButton:pressed {
-                background: #d8f4e4;
-            }
+                color: {theme.primary};
+            }}
+            QToolButton:hover {{
+                background: {theme.surface_alt};
+            }}
+            QToolButton:pressed {{
+                background: {theme.primary_soft};
+            }}
             """
         )
 

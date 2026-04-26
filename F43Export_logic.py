@@ -11,7 +11,7 @@ import pymysql
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 from PyQt6.QtWidgets import QMessageBox
 
-from F43_queries import QUERIES
+from F43Export_lib import QUERIES
 from F43Export_ui import F43ExportUI
 from Setting_helper import load_db_settings
 
@@ -57,6 +57,7 @@ class _ExportWorker(QObject):
         date_to: str,
         output_dir: Path,
         ovstist: str = "",
+        export_all_persons: bool = False,
     ) -> None:
         super().__init__()
         self.files = files
@@ -64,6 +65,7 @@ class _ExportWorker(QObject):
         self.date_to = date_to       # YYYYMMDD
         self.output_dir = output_dir
         self.ovstist = ovstist
+        self.export_all_persons = export_all_persons
         self._cancel = False
 
     def cancel(self) -> None:
@@ -138,6 +140,13 @@ class _ExportWorker(QObject):
         columns, sql = QUERIES[key]
         date_from_iso = _to_iso_date(self.date_from)
         date_to_iso = _to_iso_date(self.date_to)
+
+        # PERSON ทั้งหมด: ใช้ช่วงวันที่ open (1900-01-01..9999-12-31) เพื่อให้ EXISTS
+        # เกือบ-เสมอเป็นจริง — รวมถึง patient ที่ไม่มี visit ก็ยังถูกตัดออก แต่ครอบคลุมทุกคน
+        # ที่เคยมี visit อย่างน้อย 1 ครั้งในระบบ
+        if key == "PERSON" and self.export_all_persons:
+            date_from_iso = "1900-01-01"
+            date_to_iso = "9999-12-31"
 
         with conn.cursor() as cursor:
             # แต่ละชุด filter ใช้ 4 placeholder: date_from, date_to, ovstist, ovstist
@@ -242,7 +251,10 @@ class F43ExportWindow(F43ExportUI):
         self.btn_cancel.setEnabled(True)
 
         self._thread = QThread(self)
-        self._worker = _ExportWorker(files, date_from_str, date_to_str, out_dir, ovstist)
+        self._worker = _ExportWorker(
+            files, date_from_str, date_to_str, out_dir, ovstist,
+            export_all_persons=self.is_export_all_persons(),
+        )
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)
         self._worker.progress.connect(self._on_progress)

@@ -36,7 +36,7 @@ ALL_FILES = [
 ]
 
 # เฟสแรกเปิดเฉพาะ 3 แฟ้มนี้
-ENABLED_FILES = {"PERSON", "SERVICE", "DIAGNOSIS_OPD"}
+ENABLED_FILES = set(ALL_FILES)
 
 
 class F43ExportUI(QMainWindow):
@@ -91,17 +91,49 @@ class F43ExportUI(QMainWindow):
         self.ovstist_combo.addItem("ทั้งหมด", "")
         self.ovstist_combo.setMinimumWidth(280)
         date_layout.addWidget(self.ovstist_combo)
+        date_layout.addSpacing(16)
+        date_layout.addWidget(QLabel("PERSON:"))
+        self.person_scope_combo = QComboBox()
+        self.person_scope_combo.addItem("ส่งออกเฉพาะคนที่มีบริการ", "visit")
+        self.person_scope_combo.addItem("ส่งออกทั้งหมด", "all")
+        self.person_scope_combo.setMinimumWidth(220)
+        date_layout.addWidget(self.person_scope_combo)
         date_layout.addStretch(1)
         root.addWidget(date_box)
 
         # --- File selection ----------------------------------------------
-        files_box = QGroupBox(
-            "เลือกแฟ้มที่จะส่งออก (เฟสแรกเปิด PERSON / SERVICE / DIAGNOSIS_OPD)"
-        )
+        files_box = QGroupBox("เลือกแฟ้มที่จะส่งออก")
         files_outer = QVBoxLayout(files_box)
+
+        # ปุ่มเลือก/ยกเลิกทั้งหมด + presets
+        toolbar = QHBoxLayout()
+        self.select_all_check = QCheckBox("เลือกทั้งหมด")
+        self.select_all_check.setChecked(False)
+        self.select_all_check.stateChanged.connect(self._on_select_all_changed)
+        toolbar.addWidget(self.select_all_check)
+
+        toolbar.addSpacing(16)
+
+        # presets: ชื่อ → (รายการแฟ้ม, ovstist หรือ None)
+        self._presets: dict[str, tuple[list[str], str | None]] = {
+            "ผลงาน EPI": (["PERSON", "SERVICE", "EPI"], None),
+            "ผลงาน ANC": (["PERSON", "SERVICE", "ANC"], None),
+            "ผลงาน TELEMED": (["PERSON", "SERVICE", "DIAGNOSIS_OPD"], "5"),
+        }
+        self.preset_checks: dict[str, QCheckBox] = {}
+        for label in self._presets:
+            cb = QCheckBox(label)
+            cb.setChecked(False)
+            cb.stateChanged.connect(lambda s, n=label: self._on_preset_changed(n, s))
+            toolbar.addWidget(cb)
+            self.preset_checks[label] = cb
+
+        toolbar.addStretch(1)
+        files_outer.addLayout(toolbar)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setMinimumHeight(280)
         grid_host = QWidget()
         grid = QGridLayout(grid_host)
         grid.setHorizontalSpacing(14)
@@ -114,15 +146,16 @@ class F43ExportUI(QMainWindow):
             cb = QCheckBox(name)
             enabled = name in ENABLED_FILES
             cb.setEnabled(enabled)
-            cb.setChecked(enabled)
+            cb.setChecked(False)
             if not enabled:
-                cb.setToolTip("ยังไม่เปิดใช้งานในเฟสแรก")
+                cb.setToolTip("ยังไม่เปิดใช้งาน")
+            cb.stateChanged.connect(self._on_file_check_changed)
             grid.addWidget(cb, idx // cols, idx % cols)
             self.file_checks[name] = cb
 
         scroll.setWidget(grid_host)
         files_outer.addWidget(scroll, 1)
-        root.addWidget(files_box, 1)
+        root.addWidget(files_box, 3)
 
         # --- Output folder ------------------------------------------------
         out_row = QHBoxLayout()
@@ -152,7 +185,7 @@ class F43ExportUI(QMainWindow):
 
         self.log_view = QTextEdit()
         self.log_view.setReadOnly(True)
-        self.log_view.setMinimumHeight(140)
+        self.log_view.setMinimumHeight(90)
         root.addWidget(self.log_view, 1)
 
     def populate_ovstist(self, items: list[tuple[str, str]]) -> None:
@@ -164,6 +197,9 @@ class F43ExportUI(QMainWindow):
     def selected_ovstist(self) -> str:
         return str(self.ovstist_combo.currentData() or "")
 
+    def is_export_all_persons(self) -> bool:
+        return str(self.person_scope_combo.currentData() or "") == "all"
+
     def selected_files(self) -> list[str]:
         return [
             name
@@ -173,6 +209,66 @@ class F43ExportUI(QMainWindow):
 
     def append_log(self, message: str) -> None:
         self.log_view.append(message)
+
+    def _on_select_all_changed(self, state: int) -> None:
+        checked = state == Qt.CheckState.Checked.value
+        for cb in self.file_checks.values():
+            if cb.isEnabled():
+                cb.blockSignals(True)
+                cb.setChecked(checked)
+                cb.blockSignals(False)
+        if checked:
+            self._clear_presets()
+
+    def _on_file_check_changed(self) -> None:
+        enabled_cbs = [cb for cb in self.file_checks.values() if cb.isEnabled()]
+        if not enabled_cbs:
+            return
+        all_checked = all(cb.isChecked() for cb in enabled_cbs)
+        self.select_all_check.blockSignals(True)
+        self.select_all_check.setChecked(all_checked)
+        self.select_all_check.blockSignals(False)
+
+    def _on_preset_changed(self, label: str, state: int) -> None:
+        if state != Qt.CheckState.Checked.value:
+            # uncheck preset → ล้างแฟ้มทั้งหมด + ปลด lock combo
+            for cb in self.file_checks.values():
+                cb.blockSignals(True)
+                cb.setChecked(False)
+                cb.blockSignals(False)
+            self.ovstist_combo.setEnabled(True)
+            return
+        # exclusive: ปิด preset อื่น + select_all
+        for other_label, other_cb in self.preset_checks.items():
+            if other_label != label:
+                other_cb.blockSignals(True)
+                other_cb.setChecked(False)
+                other_cb.blockSignals(False)
+        self.select_all_check.blockSignals(True)
+        self.select_all_check.setChecked(False)
+        self.select_all_check.blockSignals(False)
+
+        files, ovstist = self._presets[label]
+        # uncheck all → check เฉพาะแฟ้มใน preset
+        for name, cb in self.file_checks.items():
+            cb.blockSignals(True)
+            cb.setChecked(name in files and cb.isEnabled())
+            cb.blockSignals(False)
+        # set ประเภทการมา ถ้า preset กำหนด + lock combo
+        if ovstist is not None:
+            for i in range(self.ovstist_combo.count()):
+                if self.ovstist_combo.itemData(i) == ovstist:
+                    self.ovstist_combo.setCurrentIndex(i)
+                    break
+            self.ovstist_combo.setEnabled(False)
+        else:
+            self.ovstist_combo.setEnabled(True)
+
+    def _clear_presets(self) -> None:
+        for cb in self.preset_checks.values():
+            cb.blockSignals(True)
+            cb.setChecked(False)
+            cb.blockSignals(False)
 
     def browse_output_folder(self) -> str:
         directory = QFileDialog.getExistingDirectory(self, "เลือกโฟลเดอร์ส่งออก")

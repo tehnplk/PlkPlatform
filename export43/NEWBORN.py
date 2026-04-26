@@ -37,7 +37,7 @@ SELECT
   CAST(CAST(COALESCE(nb.birth_weight, 0) AS UNSIGNED) AS CHAR) AS bweight,
   COALESCE(CAST(nb.has_asphyxia AS CHAR), '') AS asphyxia,
   '' AS vitk, '' AS tsh, '' AS tshresult,
-  '' AS d_update,
+  DATE_FORMAT(NOW(), '%%Y%%m%%d%%H%%i%%s') AS d_update,
   COALESCE(pt.cid, '') AS cid,
   '' AS length, '' AS headcircum
 FROM ipt_newborn nb

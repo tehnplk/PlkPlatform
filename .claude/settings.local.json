@@ -2,7 +2,14 @@
   "permissions": {
     "allow": [
       "mcp__windows-mcp__Shortcut",
-      "Read(//c/Users/Admin/Desktop/**)"
+      "Read(//c/Users/Admin/Desktop/**)",
+      "PowerShell(Stop-Process -Force)",
+      "PowerShell(Start-Process -FilePath \"uv\" -ArgumentList \"run\",\"start.py\" -WorkingDirectory \"e:\\\\PYTHON\\\\PlkPlatform\")",
+      "mcp__windows-mcp__Wait",
+      "mcp__windows-mcp__Snapshot",
+      "mcp__windows-mcp__Click",
+      "mcp__windows-mcp__Screenshot",
+      "mcp__windows-mcp__Type"
     ]
   }
 }

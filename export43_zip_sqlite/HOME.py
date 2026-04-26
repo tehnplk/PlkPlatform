@@ -1,0 +1,46 @@
+# 43 แฟ้ม (SQLite/F43.db): HOME
+COLUMNS = [
+    'hospcode',
+    'hid',
+    'house_id',
+    'housetype',
+    'roomno',
+    'condo',
+    'house',
+    'soisub',
+    'soimain',
+    'road',
+    'villaname',
+    'village',
+    'tambon',
+    'ampur',
+    'changwat',
+    'telephone',
+    'latitude',
+    'longitude',
+    'nfamily',
+    'locatype',
+    'vhvid',
+    'headid',
+    'toilet',
+    'water',
+    'watertype',
+    'garbage',
+    'housing',
+    'durability',
+    'cleanliness',
+    'ventilation',
+    'light',
+    'watertm',
+    'mfood',
+    'bcontrol',
+    'acontrol',
+    'chemical',
+    'outdate',
+    'd_update',
+]
+
+SQL = """
+SELECT "hospcode", "hid", "house_id", "housetype", "roomno", "condo", "house", "soisub", "soimain", "road", "villaname", "village", "tambon", "ampur", "changwat", "telephone", "latitude", "longitude", "nfamily", "locatype", "vhvid", "headid", "toilet", "water", "watertype", "garbage", "housing", "durability", "cleanliness", "ventilation", "light", "watertm", "mfood", "bcontrol", "acontrol", "chemical", "outdate", COALESCE(NULLIF("d_update", ''), strftime('%Y%m%d%H%M%S', 'now', 'localtime')) AS "d_update" FROM "HOME"
+WHERE ? = ? OR ? = ?  -- no real filter
+"""

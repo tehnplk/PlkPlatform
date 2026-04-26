@@ -61,10 +61,18 @@ class F43ExportUI(QMainWindow):
 
         en_locale = QLocale(QLocale.Language.English, QLocale.Country.UnitedStates)
 
-        # --- Date range ---------------------------------------------------
-        date_box = QGroupBox("ช่วงวันที่ (filter ด้วย date_serv = visit_date)")
+        # --- Filter panel: แหล่งข้อมูล + ช่วงวันที่ + ประเภทการมา + PERSON --
+        date_box = QGroupBox("ตัวกรองข้อมูล")
         date_layout = QHBoxLayout(date_box)
         date_layout.setSpacing(8)
+
+        date_layout.addWidget(QLabel("แหล่งข้อมูล:"))
+        self.source_combo = QComboBox()
+        self.source_combo.addItem("จาก HIS", "his")
+        self.source_combo.addItem("จาก ZIP 43 แฟ้ม", "zip")
+        self.source_combo.setMinimumWidth(180)
+        date_layout.addWidget(self.source_combo)
+        date_layout.addSpacing(16)
 
         self.date_from = QDateEdit()
         self.date_from.setCalendarPopup(True)
@@ -94,7 +102,7 @@ class F43ExportUI(QMainWindow):
         date_layout.addWidget(QLabel("ประเภทการมา:"))
         self.ovstist_combo = QComboBox()
         self.ovstist_combo.addItem("ทั้งหมด", "")
-        self.ovstist_combo.setMinimumWidth(280)
+        self.ovstist_combo.setMinimumWidth(260)
         date_layout.addWidget(self.ovstist_combo)
         date_layout.addSpacing(16)
         date_layout.addWidget(QLabel("PERSON:"))
@@ -182,7 +190,7 @@ class F43ExportUI(QMainWindow):
 
         # --- Action row: ZIP buttons ซ้าย, ศูนย์ข้อมูลอำเภอ ขวา -----------
         action_row = QHBoxLayout()
-        self.btn_export = QPushButton("ส่งออกไฟล์ ZIP")
+        self.btn_export = QPushButton("ส่งออก 43แฟ้ม (ZIP)")
         self.btn_export.setMinimumHeight(38)
         self.btn_cancel = QPushButton("ยกเลิก")
         self.btn_cancel.setMinimumHeight(38)
@@ -215,6 +223,10 @@ class F43ExportUI(QMainWindow):
 
     def selected_ovstist(self) -> str:
         return str(self.ovstist_combo.currentData() or "")
+
+    def selected_source(self) -> str:
+        """'his' = อ่านจาก HIS database, 'zip' = อ่านจากไฟล์ ZIP 43 แฟ้ม"""
+        return str(self.source_combo.currentData() or "his")
 
     def is_export_all_persons(self) -> bool:
         return str(self.person_scope_combo.currentData() or "") == "all"

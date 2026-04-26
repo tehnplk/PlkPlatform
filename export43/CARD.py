@@ -24,7 +24,7 @@ SELECT
   COALESCE(DATE_FORMAT(pc.expiredate, '%%Y%%m%%d'), '') AS expiredate,
   '' AS main,
   '' AS sub,
-  '' AS d_update,
+  DATE_FORMAT(NOW(), '%%Y%%m%%d%%H%%i%%s') AS d_update,
   COALESCE(pt.cid, '') AS cid
 FROM ptcardno pc
 LEFT JOIN patient pt ON pt.hn = pc.hn

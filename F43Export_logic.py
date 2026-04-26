@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import re
+import sqlite3
 import traceback
 import zipfile
 from datetime import date, datetime
@@ -12,8 +13,11 @@ from PyQt6.QtCore import QObject, QThread, pyqtSignal
 from PyQt6.QtWidgets import QMessageBox
 
 from F43Export_lib import QUERIES
+from F43Export_lib_zip import QUERIES_ZIP
 from F43Export_ui import F43ExportUI
 from Setting_helper import load_db_settings
+
+F43_DB_PATH = Path(__file__).parent / "F43.db"
 
 
 def _open_his_connection() -> pymysql.connections.Connection:
@@ -58,6 +62,7 @@ class _ExportWorker(QObject):
         output_dir: Path,
         ovstist: str = "",
         export_all_persons: bool = False,
+        source: str = "his",
     ) -> None:
         super().__init__()
         self.files = files
@@ -66,12 +71,16 @@ class _ExportWorker(QObject):
         self.output_dir = output_dir
         self.ovstist = ovstist
         self.export_all_persons = export_all_persons
+        self.source = source         # "his" หรือ "zip"
         self._cancel = False
 
     def cancel(self) -> None:
         self._cancel = True
 
     def run(self) -> None:
+        if self.source == "zip":
+            self._run_from_sqlite()
+            return
         try:
             conn = _open_his_connection()
         except Exception as exc:  # noqa: BLE001
@@ -121,6 +130,78 @@ class _ExportWorker(QObject):
             except Exception:  # noqa: BLE001
                 pass
             self.finished.emit(success, failed)
+
+    def _run_from_sqlite(self) -> None:
+        """ส่งออก ZIP โดยอ่านจาก F43.db (ที่ import มาจาก ZIP ก่อนหน้า)"""
+        if not F43_DB_PATH.exists():
+            self.failed.emit(f"ไม่พบ {F43_DB_PATH.name} — โปรดนำเข้า ZIP ผ่าน dialog ก่อน")
+            return
+
+        # ดึง hospcode จากแถวแรกของ PERSON ใน F43.db (col=hospcode); ไม่งั้นใช้ '00000'
+        hospcode = "00000"
+        sconn = sqlite3.connect(F43_DB_PATH)
+        try:
+            try:
+                row = sconn.execute('SELECT hospcode FROM "PERSON" LIMIT 1').fetchone()
+                if row and row[0]:
+                    hospcode = str(row[0]).strip()
+            except sqlite3.Error:
+                pass
+
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            bundle_name = f"F43_{hospcode}_{timestamp}"
+            zip_path = self.output_dir / f"{bundle_name}.zip"
+
+            success = 0
+            failed = 0
+            try:
+                with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+                    for i, file_name in enumerate(self.files):
+                        if self._cancel:
+                            self.log.emit("ยกเลิกการส่งออก")
+                            break
+                        self.progress.emit(i, len(self.files), f"กำลังส่งออก {file_name}...")
+                        try:
+                            n = self._export_one_sqlite(sconn, file_name, zf, bundle_name)
+                            self.log.emit(f"  ✓ {file_name}.TXT — {n} แถว")
+                            success += 1
+                        except Exception as exc:  # noqa: BLE001
+                            traceback.print_exc()
+                            self.log.emit(f"  ✗ {file_name}: {exc}")
+                            failed += 1
+                self.progress.emit(len(self.files), len(self.files), "เสร็จสิ้น")
+                if success > 0:
+                    self.log.emit(f"\nบรรจุลง zip: {zip_path}")
+                else:
+                    try:
+                        zip_path.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+            finally:
+                self.finished.emit(success, failed)
+        finally:
+            sconn.close()
+
+    def _export_one_sqlite(self, conn: sqlite3.Connection, file_name: str, zf: zipfile.ZipFile, bundle_name: str) -> int:
+        key = file_name.upper()
+        if key not in QUERIES_ZIP:
+            raise RuntimeError(f"ยังไม่มี mapping (zip) สำหรับแฟ้ม {key}")
+
+        columns, sql = QUERIES_ZIP[key]
+        ph_count = sql.count("?")
+        # 4 placeholders ต่อ block: (date_from, date_to, ovstist, ovstist)
+        params = (self.date_from, self.date_to, self.ovstist, self.ovstist)
+        if ph_count % len(params) != 0:
+            raise RuntimeError(f"จำนวน placeholder ของ {key} (zip) ไม่ถูกต้อง: {ph_count}")
+
+        rows = conn.execute(sql, params * (ph_count // len(params))).fetchall()
+
+        buffer = io.StringIO()
+        buffer.write("|".join(c.upper() for c in columns) + "\n")
+        for row in rows:
+            buffer.write("|".join("" if v is None else str(v) for v in row) + "\n")
+        zf.writestr(f"{bundle_name}/{key}.TXT", buffer.getvalue())
+        return len(rows)
 
     def _lookup_hospcode(self, conn) -> str:
         """ดึง hospcode จาก opdconfig.hospitalcode"""
@@ -192,6 +273,15 @@ class F43ExportWindow(F43ExportUI):
         self.btn_browse.clicked.connect(self.browse_output_folder)
         self.btn_export.clicked.connect(self._on_export_clicked)
         self.btn_cancel.clicked.connect(self._on_cancel_clicked)
+        self.source_combo.currentIndexChanged.connect(self._on_source_changed)
+
+    def _on_source_changed(self, _index: int) -> None:
+        if self.selected_source() != "zip":
+            return
+        from F43Import_dlg import F43ImportDialog
+        dlg = F43ImportDialog(self)
+        dlg.exec()
+        # ไม่เปลี่ยนช่วงวันที่อัตโนมัติ — ปล่อยให้ user เลือกเอง (default = วันนี้)
 
     def _load_ovstist_options(self) -> None:
         try:
@@ -239,8 +329,11 @@ class F43ExportWindow(F43ExportUI):
         ovstist = self.selected_ovstist()
         self.log_view.clear()
         ovstist_label = ovstist if ovstist else "ทั้งหมด"
+        source = self.selected_source()
+        source_label = "HIS" if source == "his" else "ZIP 43 แฟ้ม"
         self.append_log(
-            f"เริ่มส่งออก {len(files)} แฟ้ม | ช่วงวันที่ {date_from_str} - {date_to_str}"
+            f"เริ่มส่งออก {len(files)} แฟ้ม | แหล่งข้อมูล: {source_label}"
+            f" | ช่วงวันที่ {date_from_str} - {date_to_str}"
             f" | ประเภทการมา: {ovstist_label}"
         )
         self.append_log(f"โฟลเดอร์ส่งออก: {out_dir}")
@@ -254,6 +347,7 @@ class F43ExportWindow(F43ExportUI):
         self._worker = _ExportWorker(
             files, date_from_str, date_to_str, out_dir, ovstist,
             export_all_persons=self.is_export_all_persons(),
+            source=self.selected_source(),
         )
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)

@@ -21,13 +21,41 @@
 
 ## Codebase Style
 
-- `ModuleName_logic.py` — business logic, database queries, controller classes
-- `ModuleName_ui.py` — PyQt6 UI classes (QMainWindow, QWidget, QDialog)
-- `ModuleName_dlg.py` — standalone dialog windows
+### File naming
+- `ModuleName_ui.py` — PyQt6 UI class (QMainWindow / QWidget / QDialog) — layout, widgets, styling only
+- `ModuleName_logic.py` — controller class that **inherits** UI class; wires signals, threads, business logic, DB queries
+- `ModuleName_dlg.py` — standalone dialog window
+- `ModuleName_lib.py` — pure library / registry / shared helpers (no UI, no business logic)
+- `<feature>/` directory — per-record / per-file plug-in modules auto-discovered by the corresponding `_lib`
 
-- syncronize @docs/menu.md  with application menu.
+UI messages, button labels, log output, and docstrings are in **Thai**.
+Synchronize `docs/menu.md` whenever the application menu changes.
 
-UI messages and docstrings are in Thai.
+### Per-feature plug-in pattern (e.g. F43 export)
+Features with many similar SQL queries split each into its own file:
+```
+F43Export_lib.py            # registry — auto-discovers via pkgutil.iter_modules()
+export43/
+    __init__.py
+    PERSON.py               # COLUMNS = [...] + SQL = """..."""
+    SERVICE.py
+    DIAGNOSIS_OPD.py        # 52 files total
+```
+The `_lib` builds a `QUERIES` dict at import time. Add/edit a record = edit one file in the feature dir; no registry changes needed.
+
+### SQL placeholder convention
+- Every SQL in a `_lib`-discovered module uses **4 placeholders** (or a multiple of 4) supplied in order: `(date_from, date_to, ovstist, ovstist)`
+- Count un-escaped placeholders with `re.findall(r"(?<!%)%s", sql)` — `%%s` (escaped) is NOT a placeholder
+- MySQL `DATE_FORMAT` specifiers must be doubled: `'%%Y%%m%%d%%H%%i%%s'` so pymysql passes through `%Y%m%d%H%i%s`
+- Files that don't naturally need a date filter still take 4 placeholders (use `%s = %s` no-op); keeps the executor uniform
+- Files with no real source table return safely-empty: `SELECT '' AS col1, ... FROM dual WHERE 1=0 AND %s='' AND %s='' AND %s='' AND %s=''`
+
+### MDI subwindow titles
+Format: `{Child window title} - {UI module name without _ui suffix}`
+Examples: `ส่งออก 43 แฟ้ม - F43Export`, `BuddyCare Excel - BuddyCareExcel`, `Quick Visit - QuickVisit`
+
+### Threading
+QThread for any DB / network / long-running work. Worker is a `QObject` with `pyqtSignal(progress, log, finished, failed)`. Move worker to thread, connect signals, start. UI receives results on the main thread via signal handlers.
 
 ## Architecture
 

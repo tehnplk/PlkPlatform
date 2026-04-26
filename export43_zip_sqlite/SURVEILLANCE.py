@@ -1,0 +1,35 @@
+# 43 แฟ้ม (SQLite/F43.db): SURVEILLANCE
+COLUMNS = [
+    'hospcode',
+    'pid',
+    'seq',
+    'date_serv',
+    'an',
+    'datetime_admit',
+    'syndrome',
+    'diagcode',
+    'code506',
+    'diagcodelast',
+    'code506last',
+    'illdate',
+    'illhouse',
+    'illvillage',
+    'illtambon',
+    'illampur',
+    'illchangwat',
+    'latitude',
+    'longitude',
+    'ptstatus',
+    'date_death',
+    'complication',
+    'organism',
+    'provider',
+    'd_update',
+    'cid',
+]
+
+SQL = """
+SELECT "hospcode", "pid", "seq", "date_serv", "an", "datetime_admit", "syndrome", "diagcode", "code506", "diagcodelast", "code506last", "illdate", "illhouse", "illvillage", "illtambon", "illampur", "illchangwat", "latitude", "longitude", "ptstatus", "date_death", "complication", "organism", "provider", COALESCE(NULLIF("d_update", ''), strftime('%Y%m%d%H%M%S', 'now', 'localtime')) AS "d_update", "cid" FROM "SURVEILLANCE"
+WHERE "date_serv" BETWEEN ? AND ?
+  AND (? = '' OR "seq" IN (SELECT "seq" FROM "SERVICE" WHERE CAST(NULLIF("typein", '') AS INTEGER) = CAST(? AS INTEGER)))
+"""

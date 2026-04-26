@@ -1,0 +1,21 @@
+"""F43Export ZIP Source Registry — โหลด COLUMNS + SQL จาก export43_zip_sqlite/{NAME}.py
+
+ใช้สำหรับ source = "zip" — query F43.db (SQLite) ที่ import มาจาก ZIP
+รองรับ filter ด้วย date_from/date_to และ ovstist (4 placeholders เหมือน export43/)
+"""
+from __future__ import annotations
+
+import importlib
+import pkgutil
+
+import export43_zip_sqlite
+
+QUERIES_ZIP: dict[str, tuple[list[str], str]] = {}
+
+for module_info in pkgutil.iter_modules(export43_zip_sqlite.__path__):
+    module = importlib.import_module(f"export43_zip_sqlite.{module_info.name}")
+    columns = getattr(module, "COLUMNS", None)
+    sql = getattr(module, "SQL", None)
+    if columns is None or sql is None:
+        continue
+    QUERIES_ZIP[module_info.name.upper()] = (columns, sql)

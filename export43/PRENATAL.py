@@ -26,7 +26,7 @@ SELECT
   COALESCE(DATE_FORMAT(ah.estimate_delivery_date, '%%Y%%m%%d'), '') AS edc,
   '' AS vdrl_result, '' AS hb_result, '' AS hiv_result,
   '' AS date_hct, '' AS hct_result, '' AS thalassemia,
-  '' AS d_update,
+  DATE_FORMAT(NOW(), '%%Y%%m%%d%%H%%i%%s') AS d_update,
   '' AS provider,
   COALESCE(pt.cid, '') AS cid,
   '' AS height

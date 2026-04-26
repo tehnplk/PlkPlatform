@@ -28,7 +28,7 @@ SELECT
   COALESCE((SELECT hospitalcode FROM opdconfig LIMIT 1), '') AS bhosp,
   COALESCE(ip.deliver_type, '') AS btype,
   '' AS bdoctor, '' AS lborn, '' AS sborn,
-  '' AS d_update,
+  DATE_FORMAT(NOW(), '%%Y%%m%%d%%H%%i%%s') AS d_update,
   COALESCE(pt.cid, '') AS cid
 FROM ipt_pregnancy ip
 JOIN ipt i ON i.an = ip.an

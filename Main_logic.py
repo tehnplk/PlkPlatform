@@ -16,6 +16,7 @@ from Main_ui import MainUI
 from QuickVisit_logic import QuickVisitWindow
 from TelemedDaily_ui import TelemedDailyWindow
 from Theme_helper import apply_application_palette
+from Chat_logic import ChatWindow
 
 
 def resolve_app_path(relative_path: str) -> Path:
@@ -31,6 +32,7 @@ class MainWindow(MainUI):
         self._telemed_daily_subwindow = None
         self._quick_visit_subwindow = None
         self._f43_export_subwindow = None
+        self._chat_subwindow = None
         self._auto_update = AutoUpdateController(parent=self)
         self._auto_update.update_ready.connect(self._apply_downloaded_update)
         self._auto_update.failed.connect(self._handle_update_error)
@@ -158,6 +160,26 @@ class MainWindow(MainUI):
 
     def _clear_f43_export_reference(self) -> None:
         self._f43_export_subwindow = None
+
+    def open_chat_module(self) -> None:
+        if self._chat_subwindow is not None:
+            self.mdi_area.setActiveSubWindow(self._chat_subwindow)
+            self._chat_subwindow.widget().show()
+            self._chat_subwindow.showMaximized()
+            return
+
+        chat_widget = ChatWindow()
+        subwindow = self.mdi_area.addSubWindow(chat_widget)
+        subwindow.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        subwindow.setWindowTitle("แชท - Chat")
+        subwindow.destroyed.connect(self._clear_chat_reference)
+        chat_widget.show()
+        subwindow.showMaximized()
+        self._chat_subwindow = subwindow
+        self.statusBar().showMessage("เปิดโมดูลแชทแล้ว", 3000)
+
+    def _clear_chat_reference(self) -> None:
+        self._chat_subwindow = None
 
     def _show_pending_module(self, module_name: str) -> None:
         self.statusBar().showMessage(f"เปิดโมดูล {module_name}", 3000)

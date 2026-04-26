@@ -252,6 +252,10 @@ class MainUI(QMainWindow):
         self.exit_action.setStatusTip("ปิดโปรแกรม")
         self.exit_action.triggered.connect(self.close)
 
+        self.chat_action = QAction("Chat", self)
+        self.chat_action.setStatusTip("เปิดแชท")
+        self.chat_action.triggered.connect(self.open_chat_module)
+
         # ---- View / MDI management actions ----
         self.view_cascade_action = QAction("จัดเรียงซ้อน (Cascade)", self)
         self.view_cascade_action.setStatusTip("จัดเรียงหน้าต่างย่อยแบบซ้อนกัน")
@@ -379,10 +383,14 @@ class MainUI(QMainWindow):
         view_menu.aboutToShow.connect(lambda m=view_menu: self._rebuild_view_windows_list(m))
         self._view_menu = view_menu
 
+        help_menu = QMenu(self)
+        help_menu.addAction(self.chat_action)
+
         menu_layout.addWidget(self._create_menu_button("File", file_menu))
         menu_layout.addWidget(self._create_menu_button("Modules", modules_menu))
         menu_layout.addWidget(self._create_menu_button("Policy(เร่งรัด)", policy_menu))
         menu_layout.addWidget(self._create_menu_button("View", view_menu))
+        menu_layout.addWidget(self._create_menu_button("Help", help_menu))
         menu_layout.addStretch(1)
 
         top_layout.addWidget(self.title_bar)

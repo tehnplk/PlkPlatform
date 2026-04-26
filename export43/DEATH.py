@@ -40,6 +40,10 @@ SELECT
 FROM patient pt
 LEFT JOIN death d ON d.hn = pt.hn
 LEFT JOIN person ps ON ps.cid = pt.cid AND pt.cid IS NOT NULL AND pt.cid <> ''
-WHERE pt.deathday BETWEEN %s AND %s
-  AND (%s = '' OR %s = '')
+WHERE pt.deathday IS NOT NULL
+  AND EXISTS (
+    SELECT 1 FROM ovst o2 WHERE o2.hn = pt.hn
+      AND o2.vstdate BETWEEN %s AND %s
+      AND (%s = '' OR o2.ovstist = %s)
+  )
 """

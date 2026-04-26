@@ -63,5 +63,13 @@ SELECT
   COALESCE(DATE_FORMAT(h.last_update, '%%Y%%m%%d%%H%%i%%s'), '') AS d_update
 FROM house h
 WHERE h.house_id IS NOT NULL
-  AND %s <= %s AND %s = %s
+  AND EXISTS (
+    SELECT 1
+    FROM person ps
+    JOIN patient pt2 ON pt2.cid = ps.cid AND ps.cid IS NOT NULL AND ps.cid <> ''
+    JOIN ovst o2 ON o2.hn = pt2.hn
+    WHERE ps.house_id = h.house_id
+      AND o2.vstdate BETWEEN %s AND %s
+      AND (%s = '' OR o2.ovstist = %s)
+  )
 """

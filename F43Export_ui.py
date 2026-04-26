@@ -66,6 +66,7 @@ class F43ExportUI(QMainWindow):
         self.date_from = QDateEdit()
         self.date_from.setCalendarPopup(True)
         self.date_from.setDisplayFormat("dd/MM/yyyy")
+        self.date_from.setMinimumWidth(120)
         self.date_from.setLocale(en_locale)
         if self.date_from.calendarWidget() is not None:
             self.date_from.calendarWidget().setLocale(en_locale)
@@ -75,6 +76,7 @@ class F43ExportUI(QMainWindow):
         self.date_to = QDateEdit()
         self.date_to.setCalendarPopup(True)
         self.date_to.setDisplayFormat("dd/MM/yyyy")
+        self.date_to.setMinimumWidth(120)
         self.date_to.setLocale(en_locale)
         if self.date_to.calendarWidget() is not None:
             self.date_to.calendarWidget().setLocale(en_locale)
@@ -118,7 +120,7 @@ class F43ExportUI(QMainWindow):
         self._presets: dict[str, tuple[list[str], str | None]] = {
             "ผลงาน EPI": (["PERSON", "SERVICE", "EPI"], None),
             "ผลงาน ANC": (["PERSON", "SERVICE", "ANC"], None),
-            "ผลงาน TELEMED": (["PERSON", "SERVICE", "DIAGNOSIS_OPD"], "5"),
+            "ผลงาน TELEMED": (["PERSON", "SERVICE", "DIAGNOSIS_OPD"], "05"),
         }
         self.preset_checks: dict[str, QCheckBox] = {}
         for label in self._presets:
@@ -167,15 +169,21 @@ class F43ExportUI(QMainWindow):
         out_row.addWidget(self.btn_browse)
         root.addLayout(out_row)
 
-        # --- Action + progress -------------------------------------------
+        # --- Action row: ZIP buttons ซ้าย, ศูนย์ข้อมูลอำเภอ ขวา -----------
         action_row = QHBoxLayout()
-        self.btn_export = QPushButton("เริ่มส่งออก")
+        self.btn_export = QPushButton("ส่งออกไฟล์ ZIP")
         self.btn_export.setMinimumHeight(38)
         self.btn_cancel = QPushButton("ยกเลิก")
+        self.btn_cancel.setMinimumHeight(38)
         self.btn_cancel.setEnabled(False)
+        self.btn_send_dho = QPushButton("ส่งศูนย์ข้อมูลอำเภอ")
+        self.btn_send_dho.setMinimumHeight(38)
+        self.btn_send_dho.setEnabled(False)
+        self.btn_send_dho.setToolTip("ยังไม่เปิดใช้งาน")
         action_row.addWidget(self.btn_export)
         action_row.addWidget(self.btn_cancel)
         action_row.addStretch(1)
+        action_row.addWidget(self.btn_send_dho)
         root.addLayout(action_row)
 
         self.progress = QProgressBar()
@@ -231,12 +239,12 @@ class F43ExportUI(QMainWindow):
 
     def _on_preset_changed(self, label: str, state: int) -> None:
         if state != Qt.CheckState.Checked.value:
-            # uncheck preset → ล้างแฟ้มทั้งหมด + ปลด lock combo
+            # uncheck preset → ล้างแฟ้มทั้งหมด + reset combo ประเภทการมา
             for cb in self.file_checks.values():
                 cb.blockSignals(True)
                 cb.setChecked(False)
                 cb.blockSignals(False)
-            self.ovstist_combo.setEnabled(True)
+            self.ovstist_combo.setCurrentIndex(0)
             return
         # exclusive: ปิด preset อื่น + select_all
         for other_label, other_cb in self.preset_checks.items():
@@ -254,15 +262,12 @@ class F43ExportUI(QMainWindow):
             cb.blockSignals(True)
             cb.setChecked(name in files and cb.isEnabled())
             cb.blockSignals(False)
-        # set ประเภทการมา ถ้า preset กำหนด + lock combo
+        # set ประเภทการมา ถ้า preset กำหนด
         if ovstist is not None:
             for i in range(self.ovstist_combo.count()):
                 if self.ovstist_combo.itemData(i) == ovstist:
                     self.ovstist_combo.setCurrentIndex(i)
                     break
-            self.ovstist_combo.setEnabled(False)
-        else:
-            self.ovstist_combo.setEnabled(True)
 
     def _clear_presets(self) -> None:
         for cb in self.preset_checks.values():

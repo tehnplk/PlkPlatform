@@ -141,10 +141,10 @@ class _ExportWorker(QObject):
         date_from_iso = _to_iso_date(self.date_from)
         date_to_iso = _to_iso_date(self.date_to)
 
-        # PERSON ทั้งหมด: ใช้ช่วงวันที่ open (1900-01-01..9999-12-31) เพื่อให้ EXISTS
-        # เกือบ-เสมอเป็นจริง — รวมถึง patient ที่ไม่มี visit ก็ยังถูกตัดออก แต่ครอบคลุมทุกคน
-        # ที่เคยมี visit อย่างน้อย 1 ครั้งในระบบ
-        if key == "PERSON" and self.export_all_persons:
+        # ส่งออกทั้งหมด: ใช้ช่วงวันที่ open (1900-01-01..9999-12-31)
+        # ใช้กับ PERSON และแฟ้มที่ผูกกับ PID เดียวกัน (CHRONIC, CARD, ADDRESS, HOME, DEATH)
+        person_linked = {"PERSON", "CHRONIC", "CARD", "ADDRESS", "HOME", "DEATH"}
+        if key in person_linked and self.export_all_persons:
             date_from_iso = "1900-01-01"
             date_to_iso = "9999-12-31"
 

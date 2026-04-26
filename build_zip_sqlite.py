@@ -120,8 +120,7 @@ def main() -> None:
             "SELECT name FROM sqlite_master WHERE type='table'"
         )
     )
-    with open(OUT_DIR / "__init__.py", "w", encoding="utf-8") as f:
-        f.write("# 43 แฟ้ม — SQLite queries สำหรับอ่านจาก F43.db (filter ตามวันที่/ovstist)\n")
+    # __init__.py is written at end with ALL_FILES manifest (frozen-friendly)
 
     for name in tables:
         cols = [r[1] for r in conn.execute(f'PRAGMA table_info("{name}")')]
@@ -136,6 +135,11 @@ def main() -> None:
         )
         (OUT_DIR / f"{name}.py").write_text(text, encoding="utf-8")
         print(f"wrote {name} ({len(cols)} cols)")
+
+    # write manifest
+    with open(OUT_DIR / "__init__.py", "w", encoding="utf-8") as f:
+        f.write("# Auto-generated manifest — รายการ submodule ทั้งหมด (frozen-friendly)\n")
+        f.write(f"ALL_FILES = {sorted(tables)!r}\n")
 
     conn.close()
     print(f"\n{len(tables)} files in {OUT_DIR}")

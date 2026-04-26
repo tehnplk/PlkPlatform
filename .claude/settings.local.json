@@ -9,7 +9,8 @@
       "mcp__windows-mcp__Snapshot",
       "mcp__windows-mcp__Click",
       "mcp__windows-mcp__Screenshot",
-      "mcp__windows-mcp__Type"
+      "mcp__windows-mcp__Type",
+      "PowerShell($h = \\(Get-FileHash -Algorithm SHA256 -Path \"E:\\\\PYTHON\\\\PlkPlatform\\\\dist\\\\PlkPlatform.exe\"\\).Hash.ToLower\\(\\); Write-Output $h)"
     ]
   }
 }

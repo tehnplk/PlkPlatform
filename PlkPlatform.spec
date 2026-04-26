@@ -4,17 +4,30 @@
 - โมดูล plug-in ที่โหลดด้วย pkgutil.iter_modules (export43, export43_zip_sqlite)
 - Hidden imports ของ pymysql/sqlite3/PyQt6 ที่ PyInstaller บางครั้งไม่ detect
 """
+import os
 from PyInstaller.utils.hooks import collect_submodules
 
 
-# โมดูลใน export43/ และ export43_zip_sqlite/ โหลดแบบ dynamic ผ่าน pkgutil
-# จึงต้องบอก PyInstaller ให้บรรจุทุก submodule ด้วย
+# โมดูลใน export43/ และ export43_zip_sqlite/ — บรรจุทั้ง package เป็นทั้ง hiddenimports
+# (รวมเข้า .pyz) และ datas (รวมเป็นไฟล์ในโฟลเดอร์ — เพื่อให้ __path__ ใช้งานได้)
 hidden_export43 = collect_submodules('export43')
 hidden_export43_zip = collect_submodules('export43_zip_sqlite')
 
+# กำหนด explicit module list ให้ Analysis เห็นทุกตัว
+explicit_export43 = [
+    f'export43.{n[:-3]}'
+    for n in os.listdir('export43')
+    if n.endswith('.py') and n != '__init__.py'
+]
+explicit_export43_zip = [
+    f'export43_zip_sqlite.{n[:-3]}'
+    for n in os.listdir('export43_zip_sqlite')
+    if n.endswith('.py') and n != '__init__.py'
+]
+
 a = Analysis(
     ['start.py'],
-    pathex=[],
+    pathex=[os.path.abspath('.')],
     binaries=[],
     datas=[
         ('icon.ico', '.'),
@@ -25,6 +38,8 @@ a = Analysis(
     hiddenimports=[
         *hidden_export43,
         *hidden_export43_zip,
+        *explicit_export43,
+        *explicit_export43_zip,
         'pymysql',
         'pymysql.cursors',
         'pymysql.connections',

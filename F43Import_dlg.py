@@ -40,6 +40,24 @@ class F43ImportDialog(QDialog):
         self._zip_path: Path | None = None
         self._init_ui()
         self._apply_theme()
+        self._truncate_all_tables()
+
+    def _truncate_all_tables(self) -> None:
+        """ล้างทุกตารางใน F43.db ทันทีที่เปิด dialog"""
+        if not F43_DB_PATH.exists():
+            return
+        conn = sqlite3.connect(F43_DB_PATH)
+        try:
+            tables = [
+                r[0] for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
+            ]
+            for tbl in tables:
+                conn.execute(f'DELETE FROM "{tbl}"')
+            conn.commit()
+        finally:
+            conn.close()
 
     # ------------------------------------------------------------------ UI
     def _init_ui(self) -> None:
@@ -68,7 +86,7 @@ class F43ImportDialog(QDialog):
         # ปุ่มปิด
         bottom_row = QHBoxLayout()
         bottom_row.addStretch(1)
-        self.btn_close = QPushButton("ปิด")
+        self.btn_close = QPushButton("บันทึก")
         self.btn_close.setMinimumHeight(34)
         self.btn_close.clicked.connect(self.accept)
         bottom_row.addWidget(self.btn_close)

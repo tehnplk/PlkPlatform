@@ -209,16 +209,16 @@ class MainUI(QMainWindow):
         self.central_data_action.setStatusTip("เปิดโมดูลศูนย์ข้อมูลกลาง")
         self.central_data_action.triggered.connect(self.open_central_data_module)
 
-        self.central_data_ovst_action = QAction("Telemed - ส่งข้อมูลประเภทการมาด้วย OVST", self)
-        self.central_data_ovst_action.setStatusTip("ส่งข้อมูลประเภทการมาด้วยแฟ้ม OVST")
+        self.central_data_ovst_action = QAction("ส่งข้อมูลประเภทการมารับบริการด้วย HIS-Visit", self)
+        self.central_data_ovst_action.setStatusTip("ส่งข้อมูลประเภทการมารับบริการด้วย HIS-Visit")
         self.central_data_ovst_action.triggered.connect(self.open_central_data_module)
 
-        self.central_data_service_action = QAction("Telemed - ส่งข้อมูลประเภทการมาด้วยแฟ้ม SERVICE", self)
-        self.central_data_service_action.setStatusTip("ส่งข้อมูลประเภทการมาด้วยแฟ้ม SERVICE")
+        self.central_data_service_action = QAction("ส่งข้อมูลประเภทการมารับบริการด้วยแฟ้ม SERVICE", self)
+        self.central_data_service_action.setStatusTip("ส่งข้อมูลประเภทการมารับบริการด้วยแฟ้ม SERVICE")
         self.central_data_service_action.triggered.connect(self.open_telemed_daily_module)
 
-        self.buddycare_visit_action = QAction("เปิด Visit ด้วย BuddyCare Excel", self)
-        self.buddycare_visit_action.setStatusTip("เปิด visit จำนวนมากด้วย BuddyCare Excel")
+        self.buddycare_visit_action = QAction("เปิด HIS-Visit ด้วย BuddyCare Excel", self)
+        self.buddycare_visit_action.setStatusTip("เปิด HIS-Visit จำนวนมากด้วย BuddyCare Excel")
         self.buddycare_visit_action.triggered.connect(self.open_buddycare_excel)
 
         # ---- ส่งออกข้อมูล ----
@@ -348,20 +348,22 @@ class MainUI(QMainWindow):
         helpers_menu.addAction(self.ai_assistant_action)
         modules_menu.addMenu(helpers_menu)
 
-        urgent_menu = QMenu("🚨 นโยบายเร่งด่วน", modules_menu)
-
-        central_submenu = QMenu("ส่งข้อมูลเข้าระบบกลาง", urgent_menu)
-        central_submenu.addAction(self.central_data_ovst_action)
-        central_submenu.addAction(self.central_data_service_action)
-        urgent_menu.addMenu(central_submenu)
-
-        urgent_menu.addAction(self.buddycare_visit_action)
-        modules_menu.addMenu(urgent_menu)
-
         export_menu = QMenu("📦 ส่งออกข้อมูล", modules_menu)
         export_menu.addAction(self.export_43files_action)
         export_menu.addAction(self.export_13files_plus_action)
         modules_menu.addMenu(export_menu)
+
+        # ----- Policy(เร่งรัด) เป็นเมนูระดับบนสุด -----
+        policy_menu = QMenu(self)
+        telemed_menu = QMenu("📡 Telemedicine", policy_menu)
+        telemed_menu.addAction(self.buddycare_visit_action)
+
+        central_submenu = QMenu("ส่งข้อมูลเข้าระบบกลาง", telemed_menu)
+        central_submenu.addAction(self.central_data_ovst_action)
+        central_submenu.addAction(self.central_data_service_action)
+        telemed_menu.addMenu(central_submenu)
+
+        policy_menu.addMenu(telemed_menu)
 
         view_menu = QMenu(self)
         view_menu.addAction(self.view_cascade_action)
@@ -379,6 +381,7 @@ class MainUI(QMainWindow):
 
         menu_layout.addWidget(self._create_menu_button("File", file_menu))
         menu_layout.addWidget(self._create_menu_button("Modules", modules_menu))
+        menu_layout.addWidget(self._create_menu_button("Policy(เร่งรัด)", policy_menu))
         menu_layout.addWidget(self._create_menu_button("View", view_menu))
         menu_layout.addStretch(1)
 

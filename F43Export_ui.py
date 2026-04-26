@@ -38,7 +38,8 @@ ALL_FILES = [
 ]
 
 # เฟสแรกเปิดเฉพาะ 3 แฟ้มนี้
-ENABLED_FILES = set(ALL_FILES)
+# เฟสแรกเปิดเฉพาะแฟ้มของผลงาน TELEMED
+ENABLED_FILES = {"PERSON", "SERVICE", "DIAGNOSIS_OPD"}
 
 
 class F43ExportUI(QMainWindow):
@@ -113,6 +114,8 @@ class F43ExportUI(QMainWindow):
         toolbar = QHBoxLayout()
         self.select_all_check = QCheckBox("เลือกทั้งหมด")
         self.select_all_check.setChecked(False)
+        self.select_all_check.setEnabled(False)
+        self.select_all_check.setToolTip("ยังไม่เปิดใช้งาน")
         self.select_all_check.stateChanged.connect(self._on_select_all_changed)
         toolbar.addWidget(self.select_all_check)
 
@@ -124,10 +127,16 @@ class F43ExportUI(QMainWindow):
             "ผลงาน ANC": (["PERSON", "SERVICE", "ANC"], None),
             "ผลงาน TELEMED": (["PERSON", "SERVICE", "DIAGNOSIS_OPD"], "05"),
         }
+        # เฟสแรกเปิดเฉพาะ TELEMED
+        ENABLED_PRESETS = {"ผลงาน TELEMED"}
         self.preset_checks: dict[str, QCheckBox] = {}
         for label in self._presets:
             cb = QCheckBox(label)
             cb.setChecked(False)
+            enabled = label in ENABLED_PRESETS
+            cb.setEnabled(enabled)
+            if not enabled:
+                cb.setToolTip("ยังไม่เปิดใช้งาน")
             cb.stateChanged.connect(lambda s, n=label: self._on_preset_changed(n, s))
             toolbar.addWidget(cb)
             self.preset_checks[label] = cb
@@ -303,7 +312,7 @@ class F43ExportUI(QMainWindow):
             QLineEdit, QDateEdit, QTextEdit, QComboBox {{ padding: 4px 8px; }}
             QLineEdit:focus, QDateEdit:focus, QComboBox:focus {{ border: 1px solid {theme.primary}; }}
             QCheckBox {{ color: {theme.primary}; padding: 2px; }}
-            QCheckBox:disabled {{ color: {theme.disabled_text}; }}
+            QCheckBox:disabled {{ color: {theme.primary}; }}
             QPushButton {{
                 background: {theme.primary}; color: {theme.primary_text}; border: none;
                 border-radius: 6px; padding: 6px 14px; font-weight: 600;

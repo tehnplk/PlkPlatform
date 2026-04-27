@@ -246,6 +246,7 @@ class DlgHisSetting(QDialog):
                     dbname=values["DB_NAME"],
                     connect_timeout=5,
                 )
+                hoscode = self._fetch_hoscode_pg(conn)
                 conn.close()
             else:
                 conn = pymysql.connect(
@@ -258,6 +259,7 @@ class DlgHisSetting(QDialog):
                     cursorclass=pymysql.cursors.DictCursor,
                     connect_timeout=5,
                 )
+                hoscode = self._fetch_hoscode_mysql(conn)
                 conn.close()
         except Exception as exc:  # noqa: BLE001
             print(f"[SettingsDialog.test_connection] error: {exc}")
@@ -268,7 +270,56 @@ class DlgHisSetting(QDialog):
             )
             return
 
-        QMessageBox.information(self, "สำเร็จ", "ทดสอบการเชื่อมต่อ HIS สำเร็จ")
+        if hoscode:
+            self.settings.setValue("hoscode", hoscode)
+            self.settings.sync()
+            QMessageBox.information(
+                self,
+                "สำเร็จ",
+                f"ทดสอบการเชื่อมต่อ HIS สำเร็จ\nรหัสหน่วยบริการ (hoscode): {hoscode}",
+            )
+        else:
+            QMessageBox.information(self, "สำเร็จ", "ทดสอบการเชื่อมต่อ HIS สำเร็จ")
+
+    def _fetch_hoscode_mysql(self, conn) -> str | None:
+        """ดึงรหัสหน่วยบริการจากฐานข้อมูล MySQL (HOSxP/HOSxP_PCU)"""
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT hospitalcode AS hoscode FROM opdconfig LIMIT 1")
+                row = cursor.fetchone()
+                if row and "hoscode" in row:
+                    return str(row["hoscode"]).strip()
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT hospcode FROM hospital LIMIT 1")
+                row = cursor.fetchone()
+                if row and "hospcode" in row:
+                    return str(row["hospcode"]).strip()
+        except Exception:  # noqa: BLE001
+            pass
+        return None
+
+    def _fetch_hoscode_pg(self, conn) -> str | None:
+        """ดึงรหัสหน่วยบริการจากฐานข้อมูล PostgreSQL"""
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT hospitalcode AS hoscode FROM opdconfig LIMIT 1")
+                row = cursor.fetchone()
+                if row and row[0]:
+                    return str(row[0]).strip()
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT hospcode FROM hospital LIMIT 1")
+                row = cursor.fetchone()
+                if row and row[0]:
+                    return str(row[0]).strip()
+        except Exception:  # noqa: BLE001
+            pass
+        return None
 
     def save_settings(self) -> None:
         values = self._validate()

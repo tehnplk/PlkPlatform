@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ctypes
 import sys
 from pathlib import Path
 
@@ -53,6 +54,31 @@ class WindowTitleBar(QWidget):
 
 
 class MainUI(QMainWindow):
+    _GRIP_MARGIN = 10
+
+    class _MSG(ctypes.Structure):
+        _fields_ = [
+            ("hwnd", ctypes.c_void_p),
+            ("message", ctypes.c_uint),
+            ("wParam", ctypes.c_ulonglong),
+            ("lParam", ctypes.c_longlong),
+        ]
+
+    class _EdgeResizeFilter(QWidget):
+        def __init__(self, parent: MainUI) -> None:
+            super().__init__(parent)
+            self._main = parent
+            self.setMouseTracking(True)
+
+        def mousePressEvent(self, event: QMouseEvent) -> None:
+            self._main._handle_edge_resize(event)
+
+        def mouseMoveEvent(self, event: QMouseEvent) -> None:
+            self._main._update_cursor_at_edge(event.pos())
+
+        def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+            super().mouseReleaseEvent(event)
+
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Plk Platform")
@@ -60,12 +86,14 @@ class MainUI(QMainWindow):
         self.resize(1100, 680)
         self._has_positioned_on_show = False
         self._normal_geometry = self.geometry()
+        self.setMouseTracking(True)
 
         self._apply_main_theme()
 
         self.mdi_area = QMdiArea()
         self.mdi_area.setObjectName("mdi_area")
         self.mdi_area.setBackground(QColor(current_theme().mdi_end))
+        self.mdi_area.setMouseTracking(True)
         self.setCentralWidget(self.mdi_area)
 
         self._create_actions()
@@ -74,6 +102,7 @@ class MainUI(QMainWindow):
 
         self.statusBar().setObjectName("main_statusbar")
         self.statusBar().setSizeGripEnabled(False)
+        self.statusBar().setMouseTracking(True)
         self.statusBar().showMessage("พร้อมใช้งาน")
         self._version_label = QLabel(f"Version {VERSION}  •  Release {RELEASE}")
         self._version_label.setStyleSheet(
@@ -81,6 +110,108 @@ class MainUI(QMainWindow):
         )
         self.statusBar().addPermanentWidget(self._version_label)
         self._update_maximize_button()
+
+        self._edge_filter = self._EdgeResizeFilter(self)
+        for w in (self.mdi_area, self.statusBar(), self.main_toolbar):
+            w.installEventFilter(self._edge_filter)
+
+    def nativeEvent(self, event_type, message) -> tuple[bool, int]:
+        try:
+            ptr = int(message)
+        except (TypeError, ValueError):
+            return False, 0
+        if ptr == 0:
+            return False, 0
+        msg = ctypes.cast(ptr, ctypes.POINTER(self._MSG)).contents
+        if msg.message != 0x0084:
+            return False, 0
+        if self.isMaximized() or self.isMinimized():
+            return False, 0
+
+        pos = self.mapFromGlobal(self.cursor().pos())
+        x, y = pos.x(), pos.y()
+        ht = self._hit_test_edges(x, y)
+        if ht != 0:
+            return True, ht
+        return False, 0
+
+    def _hit_test_edges(self, x: int, y: int) -> int:
+        left = x < self._GRIP_MARGIN
+        right = x > self.width() - self._GRIP_MARGIN
+        top = y < self._GRIP_MARGIN
+        bottom = y > self.height() - self._GRIP_MARGIN
+
+        if top and left:
+            return 13  # HTTOPLEFT
+        if top and right:
+            return 14  # HTTOPRIGHT
+        if bottom and left:
+            return 16  # HTBOTTOMLEFT
+        if bottom and right:
+            return 17  # HTBOTTOMRIGHT
+        if left:
+            return 10  # HTLEFT
+        if right:
+            return 11  # HTRIGHT
+        if top:
+            return 12  # HTTOP
+        if bottom:
+            return 15  # HTBOTTOM
+        return 0
+
+    def _edge_at(self, x: int, y: int) -> Qt.Edge | None:
+        if x < self._GRIP_MARGIN:
+            return Qt.Edge.LeftEdge
+        if x > self.width() - self._GRIP_MARGIN:
+            return Qt.Edge.RightEdge
+        if y < self._GRIP_MARGIN:
+            return Qt.Edge.TopEdge
+        if y > self.height() - self._GRIP_MARGIN:
+            return Qt.Edge.BottomEdge
+        return None
+
+    def _update_cursor_at_edge(self, pos) -> None:
+        x, y = pos.x(), pos.y()
+        left = x < self._GRIP_MARGIN
+        right = x > self.width() - self._GRIP_MARGIN
+        top = y < self._GRIP_MARGIN
+        bottom = y > self.height() - self._GRIP_MARGIN
+
+        if self.windowState() in (Qt.WindowState.WindowMaximized, Qt.WindowState.WindowMinimized):
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+            return
+
+        if (top and left) or (bottom and right):
+            self.setCursor(Qt.CursorShape.SizeFDiagCursor)
+        elif (top and right) or (bottom and left):
+            self.setCursor(Qt.CursorShape.SizeBDiagCursor)
+        elif left or right:
+            self.setCursor(Qt.CursorShape.SizeHorCursor)
+        elif top or bottom:
+            self.setCursor(Qt.CursorShape.SizeVerCursor)
+        else:
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+
+    def _handle_edge_resize(self, event: QMouseEvent) -> None:
+        if event.button() != Qt.MouseButton.LeftButton:
+            super(MainUI, self).mousePressEvent(event)
+            return
+        if self.windowState() in (Qt.WindowState.WindowMaximized, Qt.WindowState.WindowMinimized):
+            super(MainUI, self).mousePressEvent(event)
+            return
+
+        pos = event.pos()
+        x, y = pos.x(), pos.y()
+        edge = self._edge_at(x, y)
+        if edge is None:
+            super(MainUI, self).mousePressEvent(event)
+            return
+
+        wh = self.windowHandle()
+        if wh is not None and wh.startSystemResize(edge):
+            event.accept()
+        else:
+            super(MainUI, self).mousePressEvent(event)
 
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
@@ -220,6 +351,14 @@ class MainUI(QMainWindow):
         self.buddycare_visit_action = QAction("เปิด HIS-Visit ด้วย BuddyCare Excel", self)
         self.buddycare_visit_action.setStatusTip("เปิด HIS-Visit จำนวนมากด้วย BuddyCare Excel")
         self.buddycare_visit_action.triggered.connect(self.open_buddycare_excel)
+
+        self.hdc_telemed_action = QAction("ผลงานใน HDC ปัจจุบัน", self)
+        self.hdc_telemed_action.setStatusTip("ดูผลงาน Telemedicine ใน HDC ปัจจุบัน")
+        self.hdc_telemed_action.triggered.connect(self.open_hdc_telemed_module)
+
+        self.hdc_telemed_action = QAction("ผลงานใน HDC ปัจจุบัน", self)
+        self.hdc_telemed_action.setStatusTip("ดูผลงาน Telemedicine ใน HDC ปัจจุบัน")
+        self.hdc_telemed_action.triggered.connect(self.open_hdc_telemed_module)
 
         # ---- ส่งออกข้อมูล ----
         self.export_43files_action = QAction("43 Files", self)
@@ -366,6 +505,10 @@ class MainUI(QMainWindow):
         central_submenu.addAction(self.central_data_ovst_action)
         central_submenu.addAction(self.central_data_service_action)
         telemed_menu.addMenu(central_submenu)
+
+        telemed_menu.addAction(self.hdc_telemed_action)
+
+        telemed_menu.addAction(self.hdc_telemed_action)
 
         policy_menu.addMenu(telemed_menu)
 

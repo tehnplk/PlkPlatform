@@ -11,6 +11,7 @@ from AutoUpdate_logic import AutoUpdateController, DownloadedUpdate, is_packaged
 from BuddyCareExcel_logic import BuddyCareExcelWindow
 from DataCenter_logic import DataCenterWindow
 from F43Export_logic import F43ExportWindow
+from HdcTelemed_logic import HdcTelemedLogic
 from HisSetting_dlg import DlgHisSetting
 from Main_ui import MainUI
 from QuickVisit_logic import QuickVisitWindow
@@ -33,6 +34,7 @@ class MainWindow(MainUI):
         self._quick_visit_subwindow = None
         self._f43_export_subwindow = None
         self._chat_subwindow = None
+        self._hdc_telemed_subwindow = None
         self._auto_update = AutoUpdateController(parent=self)
         self._auto_update.update_ready.connect(self._apply_downloaded_update)
         self._auto_update.failed.connect(self._handle_update_error)
@@ -180,6 +182,46 @@ class MainWindow(MainUI):
 
     def _clear_chat_reference(self) -> None:
         self._chat_subwindow = None
+
+    def open_hdc_telemed_module(self) -> None:
+        if self._hdc_telemed_subwindow is not None:
+            self.mdi_area.setActiveSubWindow(self._hdc_telemed_subwindow)
+            self._hdc_telemed_subwindow.widget().show()
+            self._hdc_telemed_subwindow.showMaximized()
+            return
+
+        hdc_widget = HdcTelemedLogic()
+        subwindow = self.mdi_area.addSubWindow(hdc_widget)
+        subwindow.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        subwindow.setWindowTitle("ผลงานใน HDC ปัจจุบัน - HdcTelemed")
+        subwindow.destroyed.connect(self._clear_hdc_telemed_reference)
+        hdc_widget.show()
+        subwindow.showMaximized()
+        self._hdc_telemed_subwindow = subwindow
+        self.statusBar().showMessage("เปิดผลงานใน HDC ปัจจุบันแล้ว", 3000)
+
+    def _clear_hdc_telemed_reference(self) -> None:
+        self._hdc_telemed_subwindow = None
+
+    def open_hdc_telemed_module(self) -> None:
+        if self._hdc_telemed_subwindow is not None:
+            self.mdi_area.setActiveSubWindow(self._hdc_telemed_subwindow)
+            self._hdc_telemed_subwindow.widget().show()
+            self._hdc_telemed_subwindow.showMaximized()
+            return
+
+        hdc_widget = HdcTelemedLogic()
+        subwindow = self.mdi_area.addSubWindow(hdc_widget)
+        subwindow.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        subwindow.setWindowTitle("ผลงานใน HDC ปัจจุบัน - HdcTelemed")
+        subwindow.destroyed.connect(self._clear_hdc_telemed_reference)
+        hdc_widget.show()
+        subwindow.showMaximized()
+        self._hdc_telemed_subwindow = subwindow
+        self.statusBar().showMessage("เปิดผลงานใน HDC ปัจจุบันแล้ว", 3000)
+
+    def _clear_hdc_telemed_reference(self) -> None:
+        self._hdc_telemed_subwindow = None
 
     def _show_pending_module(self, module_name: str) -> None:
         self.statusBar().showMessage(f"เปิดโมดูล {module_name}", 3000)

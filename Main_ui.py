@@ -4,7 +4,7 @@ import ctypes
 import sys
 from pathlib import Path
 
-from PyQt6.QtCore import QEvent, QSize, Qt, QTimer
+from PyQt6.QtCore import QEvent, QSettings, QSize, Qt, QTimer
 from PyQt6.QtGui import QAction, QColor, QGuiApplication, QMouseEvent, QPixmap, QShowEvent
 from PyQt6.QtWidgets import (
     QHBoxLayout,
@@ -559,14 +559,13 @@ class MainUI(QMainWindow):
         self._view_menu = view_menu
 
         help_menu = QMenu(self)
-        help_menu.addAction(self.chat_action)
-        help_menu.addSeparator()
         help_menu.addAction(self.about_action)
 
         menu_layout.addWidget(self._create_menu_button("File", file_menu))
         menu_layout.addWidget(self._create_menu_button("Modules", modules_menu))
         menu_layout.addWidget(self._create_menu_button("Policy(เร่งรัด)", policy_menu))
         menu_layout.addWidget(self._create_menu_button("View", view_menu))
+        menu_layout.addWidget(self._create_menu_action_button("Chat", self.chat_action))
         menu_layout.addWidget(self._create_menu_button("Help", help_menu))
         menu_layout.addStretch(1)
 
@@ -620,13 +619,22 @@ class MainUI(QMainWindow):
         self.setting_button = self._create_toolbar_button("⚙", "Setting", self.setting_action)
         self.buddycare_button = self._create_toolbar_button("📋", "BuddyCare", self.buddycare_action)
         self.toolbar_spacer = self._create_toolbar_spacer()
+        self.toolbar_toggle_button = self._create_toolbar_toggle_button()
+        self._toolbar_buttons = (
+            (self.setting_button, "⚙", "Setting"),
+            (self.buddycare_button, "📋", "BuddyCare"),
+        )
 
         self.main_toolbar.addWidget(self.setting_button)
         self.main_toolbar.addWidget(self.buddycare_button)
         self.main_toolbar.addWidget(self.toolbar_spacer)
+        self.main_toolbar.addWidget(self.toolbar_toggle_button)
         self.main_toolbar.orientationChanged.connect(self._sync_toolbar_layout)
 
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.main_toolbar)
+        settings = QSettings("PlkHealth", "PlkPlatform")
+        self._toolbar_collapsed = settings.value("main_toolbar/collapsed", False, type=bool)
+        self._apply_toolbar_collapsed_state(save=False)
         self._sync_toolbar_layout(self.main_toolbar.orientation())
 
     def _rebuild_view_windows_list(self, menu: QMenu) -> None:
@@ -672,6 +680,14 @@ class MainUI(QMainWindow):
         button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
         button.setMenu(menu)
+        return button
+
+    def _create_menu_action_button(self, label: str, action: QAction) -> QToolButton:
+        button = QToolButton(self)
+        button.setObjectName("menu_button")
+        button.setText(label)
+        button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        button.clicked.connect(action.trigger)
         return button
 
     def _create_window_control(self, label: str, handler) -> QToolButton:
@@ -730,6 +746,42 @@ class MainUI(QMainWindow):
         button.clicked.connect(action.trigger)
         return button
 
+    def _create_toolbar_toggle_button(self) -> QToolButton:
+        button = QToolButton(self)
+        button.setObjectName("toolbar_toggle_button")
+        button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        button.setAutoRaise(False)
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.setFixedSize(34, 30)
+        button.clicked.connect(self._toggle_main_toolbar_collapsed)
+        return button
+
+    def _toggle_main_toolbar_collapsed(self) -> None:
+        self._toolbar_collapsed = not getattr(self, "_toolbar_collapsed", False)
+        self._apply_toolbar_collapsed_state(save=True)
+
+    def _apply_toolbar_collapsed_state(self, save: bool) -> None:
+        collapsed = getattr(self, "_toolbar_collapsed", False)
+        button_size = QSize(40, 30) if collapsed else QSize(88, 35)
+
+        for button, emoji, label in self._toolbar_buttons:
+            button.setText(emoji if collapsed else f"{emoji} {label}")
+            button.setToolTip(label if collapsed else "")
+            button.setMinimumSize(button_size)
+            if collapsed:
+                button.setMaximumSize(button_size.width(), button_size.height())
+            else:
+                button.setMaximumWidth(16777215)
+                button.setMaximumHeight(button_size.height())
+
+        self.toolbar_toggle_button.setText("▾" if collapsed else "▴")
+        self.toolbar_toggle_button.setToolTip("ขยาย toolbar" if collapsed else "ยุบ toolbar")
+        self.main_toolbar.setFixedHeight(34 if collapsed else 43)
+
+        if save:
+            settings = QSettings("PlkHealth", "PlkPlatform")
+            settings.setValue("main_toolbar/collapsed", collapsed)
+
     @staticmethod
     def _create_toolbar_spacer() -> QWidget:
         spacer = QWidget()
@@ -743,12 +795,19 @@ class MainUI(QMainWindow):
             self.toolbar_spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         button_size = QSize(88, 35)
+        if getattr(self, "_toolbar_collapsed", False):
+            button_size = QSize(40, 30)
+
         for button in (
             self.setting_button,
             self.buddycare_button,
         ):
             button.setMinimumSize(button_size)
-            button.setMaximumHeight(button_size.height())
+            if getattr(self, "_toolbar_collapsed", False):
+                button.setMaximumSize(button_size.width(), button_size.height())
+            else:
+                button.setMaximumWidth(16777215)
+                button.setMaximumHeight(button_size.height())
 
     def _position_initial_window(self) -> None:
         screen = self.screen() or QGuiApplication.primaryScreen()

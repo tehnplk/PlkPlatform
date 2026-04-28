@@ -1,3 +1,4 @@
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 
@@ -18,6 +19,7 @@ class ChatUI(QWidget):
         layout.setSpacing(0)
 
         self.web_view = QWebEngineView(self)
+        self.web_view.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
         layout.addWidget(self.web_view)
 
     def _apply_theme(self) -> None:

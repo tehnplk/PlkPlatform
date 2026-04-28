@@ -7,7 +7,7 @@ Development runs through `uv run start.py` skip update installation unless `PLK_
 
 ## Host
 - ssh adminplk@61.19.112.242 -pw Plkhe@lth00051 -p 2233
-- path /var/www/wwwroot/platform.plkhealth.go.th
+- path /var/www/wwwroot/platform.plkhealth.go.th/public/plkplatform
 
 ## Base Url
 - https://platform.plkhealth.go.th/

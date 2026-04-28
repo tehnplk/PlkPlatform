@@ -15,6 +15,7 @@ from HdcTelemed_logic import HdcTelemedLogic
 from HisSetting_dlg import DlgHisSetting
 from Main_ui import MainUI
 from QuickVisit_logic import QuickVisitWindow
+from Query_logic import QueryWindow
 from TelemedDaily_ui import TelemedDailyWindow
 from Theme_helper import apply_application_palette
 from Chat_logic import ChatWindow
@@ -36,6 +37,7 @@ class MainWindow(MainUI):
         self._f43_export_subwindow = None
         self._chat_subwindow = None
         self._hdc_telemed_subwindow = None
+        self._query_subwindow = None
         self._auto_update = AutoUpdateController(parent=self)
         self._auto_update.update_ready.connect(self._apply_downloaded_update)
         self._auto_update.no_update.connect(self._hide_update_progress)
@@ -145,6 +147,26 @@ class MainWindow(MainUI):
 
     def _clear_quick_visit_reference(self) -> None:
         self._quick_visit_subwindow = None
+
+    def open_query_module(self) -> None:
+        if self._query_subwindow is not None:
+            self.mdi_area.setActiveSubWindow(self._query_subwindow)
+            self._query_subwindow.widget().show()
+            self._query_subwindow.showMaximized()
+            return
+
+        query_widget = QueryWindow()
+        subwindow = self.mdi_area.addSubWindow(query_widget)
+        subwindow.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        subwindow.setWindowTitle("Query - Query")
+        subwindow.destroyed.connect(self._clear_query_reference)
+        query_widget.show()
+        subwindow.showMaximized()
+        self._query_subwindow = subwindow
+        self.statusBar().showMessage("เปิด Query แล้ว", 3000)
+
+    def _clear_query_reference(self) -> None:
+        self._query_subwindow = None
 
     def open_f43_export_module(self) -> None:
         if self._f43_export_subwindow is not None:

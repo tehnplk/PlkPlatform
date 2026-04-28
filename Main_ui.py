@@ -422,6 +422,10 @@ class MainUI(QMainWindow):
         self.quick_visit_action.setStatusTip("ค้นหาคนไข้และเปิด visit ได้เร็ว")
         self.quick_visit_action.triggered.connect(self.open_quick_visit_module)
 
+        self.query_action = QAction("Query", self)
+        self.query_action.setStatusTip("เขียน SQL แบบ SELECT และแสดงผลในตาราง")
+        self.query_action.triggered.connect(self.open_query_module)
+
         self.exit_action = QAction("Exit", self)
         self.exit_action.setStatusTip("ปิดโปรแกรม")
         self.exit_action.triggered.connect(self.close)
@@ -565,14 +569,18 @@ class MainUI(QMainWindow):
         view_menu.aboutToShow.connect(lambda m=view_menu: self._rebuild_view_windows_list(m))
         self._view_menu = view_menu
 
+        tools_menu = QMenu(self)
+        tools_menu.addAction(self.query_action)
+
         help_menu = QMenu(self)
         help_menu.addAction(self.about_action)
 
         menu_layout.addWidget(self._create_menu_button("File", file_menu))
         menu_layout.addWidget(self._create_menu_button("Modules", modules_menu))
         menu_layout.addWidget(self._create_menu_button("Policy(เร่งรัด)", policy_menu))
-        menu_layout.addWidget(self._create_menu_button("View", view_menu))
+        menu_layout.addWidget(self._create_menu_button("Tools", tools_menu))
         menu_layout.addWidget(self._create_menu_action_button("Chat", self.chat_action))
+        menu_layout.addWidget(self._create_menu_button("View", view_menu))
         menu_layout.addWidget(self._create_menu_button("Help", help_menu))
         menu_layout.addStretch(1)
 

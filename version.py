@@ -1,7 +1,7 @@
 import os
 
 
-VERSION = "0.1.14"
+VERSION = "0.1.15"
 RELEASE = "2026-04-28"
 
 # Endpoint must return JSON:

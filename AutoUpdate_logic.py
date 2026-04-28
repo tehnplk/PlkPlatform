@@ -274,7 +274,7 @@ class AutoUpdateWorker(QObject):
             return
 
         percent = min(100, int(downloaded_bytes * 100 / total_bytes))
-        self.progress.emit(percent, f"กำลังดาวน์โหลดเวอร์ชันใหม่... {percent}%")
+        self.progress.emit(percent, "กำลังดาวน์โหลดเวอร์ชันใหม่...")
 
 
 class AutoUpdateController(QObject):

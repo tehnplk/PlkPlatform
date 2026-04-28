@@ -105,6 +105,12 @@ class MainUI(QMainWindow):
         self.statusBar().setSizeGripEnabled(False)
         self.statusBar().setMouseTracking(True)
         self.statusBar().showMessage("พร้อมใช้งาน")
+        self.update_progress_label = QLabel("กำลังดาวน์โหลดเวอร์ชันใหม่...")
+        self.update_progress_label.setObjectName("main_update_progress_label")
+        self.update_progress_label.setStyleSheet(
+            f"color: {current_theme().primary}; font-weight: 700; padding: 0 6px;"
+        )
+        self.update_progress_label.setVisible(False)
         self.update_progress_bar = QProgressBar()
         self.update_progress_bar.setObjectName("main_update_progress")
         self.update_progress_bar.setRange(0, 100)
@@ -113,6 +119,7 @@ class MainUI(QMainWindow):
         self.update_progress_bar.setFixedHeight(18)
         self.update_progress_bar.setTextVisible(True)
         self.update_progress_bar.setVisible(False)
+        self.statusBar().addWidget(self.update_progress_label)
         self.statusBar().addWidget(self.update_progress_bar)
         self._version_label = QLabel(f"Version {VERSION}  •  Release {RELEASE}")
         self._version_label.setStyleSheet(

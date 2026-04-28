@@ -252,6 +252,10 @@ class MainWindow(MainUI):
         self._auto_update.check_in_background()
 
     def _handle_update_progress(self, value: int, message: str) -> None:
+        self.statusBar().clearMessage()
+        self.update_progress_label.setText(message)
+        self.update_progress_label.setVisible(True)
+
         if value < 0:
             self.update_progress_bar.setRange(0, 0)
             self.update_progress_bar.setFormat("")
@@ -261,9 +265,10 @@ class MainWindow(MainUI):
             self.update_progress_bar.setFormat(f"{value}%")
 
         self.update_progress_bar.setVisible(True)
-        self.statusBar().showMessage(message)
 
     def _hide_update_progress(self) -> None:
+        self.update_progress_label.setVisible(False)
+        self.update_progress_label.setText("กำลังดาวน์โหลดเวอร์ชันใหม่...")
         self.update_progress_bar.setVisible(False)
         self.update_progress_bar.setRange(0, 100)
         self.update_progress_bar.setValue(0)

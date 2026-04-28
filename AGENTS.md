@@ -1,5 +1,5 @@
 # AGENTS.md
-- before run terminal command should convert output encoding to UTF-8.
+- before run terminal command should convert console output encoding to UTF-8.
 
 ## PlkPlatform Repo
 ระบบ Utility จัดการ HIS (Hospital Information System utility)

@@ -3,6 +3,7 @@ __pycache__/
 /test-data
 /build
 /dist
+/update_config.json
 
 # Patient-data exports / logs
 /visit_err.txt

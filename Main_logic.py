@@ -38,6 +38,8 @@ class MainWindow(MainUI):
         self._hdc_telemed_subwindow = None
         self._auto_update = AutoUpdateController(parent=self)
         self._auto_update.update_ready.connect(self._apply_downloaded_update)
+        self._auto_update.no_update.connect(self._hide_update_progress)
+        self._auto_update.progress.connect(self._handle_update_progress)
         self._auto_update.failed.connect(self._handle_update_error)
 
         # ตรวจอัปเดตทุก 1 ชั่วโมง (เพิ่มเติมจากตอนเปิดโปรแกรม)
@@ -249,7 +251,26 @@ class MainWindow(MainUI):
         self.statusBar().showMessage("Checking for updates...", 3000)
         self._auto_update.check_in_background()
 
+    def _handle_update_progress(self, value: int, message: str) -> None:
+        if value < 0:
+            self.update_progress_bar.setRange(0, 0)
+            self.update_progress_bar.setFormat("")
+        else:
+            self.update_progress_bar.setRange(0, 100)
+            self.update_progress_bar.setValue(value)
+            self.update_progress_bar.setFormat(f"{value}%")
+
+        self.update_progress_bar.setVisible(True)
+        self.statusBar().showMessage(message)
+
+    def _hide_update_progress(self) -> None:
+        self.update_progress_bar.setVisible(False)
+        self.update_progress_bar.setRange(0, 100)
+        self.update_progress_bar.setValue(0)
+        self.update_progress_bar.setFormat("%p%")
+
     def _apply_downloaded_update(self, downloaded_update: DownloadedUpdate) -> None:
+        self._hide_update_progress()
         if not is_packaged_app():
             self.statusBar().showMessage(
                 f"Downloaded version {downloaded_update.info.version}. Installer skipped in dev mode.",
@@ -285,6 +306,7 @@ class MainWindow(MainUI):
         QApplication.instance().quit()
 
     def _handle_update_error(self, message: str) -> None:
+        self._hide_update_progress()
         self.statusBar().showMessage(f"Update check failed: {message}", 5000)
 
 

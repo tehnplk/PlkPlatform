@@ -11,10 +11,11 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
-from version import UPDATE_MANIFEST_URL, VERSION
+from version import DEFAULT_UPDATE_MANIFEST_URL, VERSION
 
 
 UPDATE_TIMEOUT_SECONDS = 20
@@ -57,18 +58,27 @@ def app_update_dir() -> Path:
 
 
 def configured_manifest_url() -> str:
-    if UPDATE_MANIFEST_URL:
-        return UPDATE_MANIFEST_URL
+    env_manifest_url = os.environ.get("PLK_UPDATE_MANIFEST_URL", "").strip()
+    if env_manifest_url:
+        return env_manifest_url
 
     config_path = current_executable_path().parent / "update_config.json"
-    if not config_path.exists():
-        return ""
+    if config_path.exists():
+        try:
+            data = json.loads(config_path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError):
+            return ""
 
-    try:
-        data = json.loads(config_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return ""
-    return str(data.get("manifest_url", "")).strip()
+        manifest_url = str(data.get("manifest_url", "")).strip()
+        if manifest_url:
+            return manifest_url
+
+    return DEFAULT_UPDATE_MANIFEST_URL
+
+
+def is_local_manifest_url(manifest_url: str) -> bool:
+    host = urllib.parse.urlparse(manifest_url).hostname
+    return host in {"127.0.0.1", "localhost", "::1"}
 
 
 def normalize_version(version: str) -> tuple[int, ...]:
@@ -94,7 +104,7 @@ def is_newer_version(candidate: str, current: str = VERSION) -> bool:
 
 
 def parse_update_info(payload: bytes) -> UpdateInfo:
-    data = json.loads(payload.decode("utf-8"))
+    data = json.loads(payload.decode("utf-8-sig"))
     version = str(data.get("version", "")).strip()
     url = str(data.get("url", "")).strip()
     if not version or not url:
@@ -120,7 +130,10 @@ def fetch_update_info(manifest_url: str) -> UpdateInfo:
         return parse_update_info(response.read())
 
 
-def download_update(info: UpdateInfo) -> Path:
+DownloadProgressCallback = Callable[[int, int], None]
+
+
+def download_update(info: UpdateInfo, progress_callback: DownloadProgressCallback | None = None) -> Path:
     update_dir = app_update_dir()
     suffix = Path(urllib.parse.urlparse(info.url).path).suffix or ".exe"
     staged_path = update_dir / f"PlkPlatform-{info.version}{suffix}"
@@ -132,6 +145,10 @@ def download_update(info: UpdateInfo) -> Path:
         headers={"User-Agent": f"PlkPlatform/{VERSION}"},
     )
     with urllib.request.urlopen(request, timeout=UPDATE_TIMEOUT_SECONDS) as response:
+        total_bytes = int(response.headers.get("Content-Length") or 0)
+        downloaded_bytes = 0
+        if progress_callback is not None:
+            progress_callback(downloaded_bytes, total_bytes)
         with temp_path.open("wb") as file:
             while True:
                 chunk = response.read(DOWNLOAD_CHUNK_SIZE)
@@ -139,6 +156,9 @@ def download_update(info: UpdateInfo) -> Path:
                     break
                 digest.update(chunk)
                 file.write(chunk)
+                downloaded_bytes += len(chunk)
+                if progress_callback is not None:
+                    progress_callback(downloaded_bytes, total_bytes)
 
     actual_hash = digest.hexdigest()
     if info.sha256 and actual_hash != info.sha256:
@@ -213,6 +233,7 @@ def launch_update_installer(staged_path: Path) -> bool:
 class AutoUpdateWorker(QObject):
     update_ready = pyqtSignal(object)
     no_update = pyqtSignal()
+    progress = pyqtSignal(int, str)
     failed = pyqtSignal(str)
     finished = pyqtSignal()
 
@@ -226,7 +247,11 @@ class AutoUpdateWorker(QObject):
                 self.no_update.emit()
                 return
 
-            if not is_packaged_app() and os.environ.get("PLK_UPDATE_ALLOW_DEV") != "1":
+            if (
+                not is_packaged_app()
+                and os.environ.get("PLK_UPDATE_ALLOW_DEV") != "1"
+                and not is_local_manifest_url(self.manifest_url)
+            ):
                 self.no_update.emit()
                 return
 
@@ -235,17 +260,27 @@ class AutoUpdateWorker(QObject):
                 self.no_update.emit()
                 return
 
-            staged_path = download_update(info)
+            self.progress.emit(0, f"กำลังดาวน์โหลดเวอร์ชัน {info.version}...")
+            staged_path = download_update(info, self._emit_download_progress)
             self.update_ready.emit(DownloadedUpdate(info=info, staged_path=staged_path))
         except (OSError, urllib.error.URLError, ValueError, json.JSONDecodeError) as exc:
             self.failed.emit(str(exc))
         finally:
             self.finished.emit()
 
+    def _emit_download_progress(self, downloaded_bytes: int, total_bytes: int) -> None:
+        if total_bytes <= 0:
+            self.progress.emit(-1, "กำลังดาวน์โหลดเวอร์ชันใหม่...")
+            return
+
+        percent = min(100, int(downloaded_bytes * 100 / total_bytes))
+        self.progress.emit(percent, f"กำลังดาวน์โหลดเวอร์ชันใหม่... {percent}%")
+
 
 class AutoUpdateController(QObject):
     update_ready = pyqtSignal(object)
     no_update = pyqtSignal()
+    progress = pyqtSignal(int, str)
     failed = pyqtSignal(str)
 
     def __init__(self, manifest_url: str | None = None, parent: QObject | None = None) -> None:
@@ -264,6 +299,7 @@ class AutoUpdateController(QObject):
         self._thread.started.connect(self._worker.run)
         self._worker.update_ready.connect(self.update_ready)
         self._worker.no_update.connect(self.no_update)
+        self._worker.progress.connect(self.progress)
         self._worker.failed.connect(self.failed)
         self._worker.finished.connect(self._thread.quit)
         self._worker.finished.connect(self._worker.deleteLater)

@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QMainWindow,
     QMdiArea,
     QMenu,
+    QProgressBar,
     QSizePolicy,
     QToolBar,
     QToolButton,
@@ -104,6 +105,15 @@ class MainUI(QMainWindow):
         self.statusBar().setSizeGripEnabled(False)
         self.statusBar().setMouseTracking(True)
         self.statusBar().showMessage("พร้อมใช้งาน")
+        self.update_progress_bar = QProgressBar()
+        self.update_progress_bar.setObjectName("main_update_progress")
+        self.update_progress_bar.setRange(0, 100)
+        self.update_progress_bar.setValue(0)
+        self.update_progress_bar.setFixedWidth(220)
+        self.update_progress_bar.setFixedHeight(18)
+        self.update_progress_bar.setTextVisible(True)
+        self.update_progress_bar.setVisible(False)
+        self.statusBar().addWidget(self.update_progress_bar)
         self._version_label = QLabel(f"Version {VERSION}  •  Release {RELEASE}")
         self._version_label.setStyleSheet(
             f"color: {current_theme().primary}; font-weight: 700; padding: 0 10px;"
@@ -319,6 +329,19 @@ class MainUI(QMainWindow):
             }}
             QStatusBar::item {{
                 border: none;
+            }}
+            QProgressBar#main_update_progress {{
+                background: {theme.surface};
+                color: {theme.text};
+                border: 1px solid {theme.border};
+                border-radius: 4px;
+                font-size: 11px;
+                font-weight: 700;
+                text-align: center;
+            }}
+            QProgressBar#main_update_progress::chunk {{
+                background: {theme.primary};
+                border-radius: 3px;
             }}
             QMdiArea#mdi_area {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,

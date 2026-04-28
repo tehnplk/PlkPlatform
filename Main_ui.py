@@ -305,6 +305,11 @@ class MainUI(QMainWindow):
             QMenu::item:selected {{
                 background: {theme.primary_soft};
             }}
+            QMenu::separator {{
+                height: 1px;
+                background: {theme.border};
+                margin: 6px 10px;
+            }}
             QStatusBar#main_statusbar {{
                 background: {theme.surface_muted};
                 color: {theme.primary};
@@ -394,6 +399,10 @@ class MainUI(QMainWindow):
         self.chat_action = QAction("Chat", self)
         self.chat_action.setStatusTip("เปิดแชท")
         self.chat_action.triggered.connect(self.open_chat_module)
+
+        self.about_action = QAction("About", self)
+        self.about_action.setStatusTip("เกี่ยวกับโปรแกรม")
+        self.about_action.triggered.connect(self.open_about_dialog)
 
         # ---- View / MDI management actions ----
         self.view_cascade_action = QAction("จัดเรียงซ้อน (Cascade)", self)
@@ -528,6 +537,8 @@ class MainUI(QMainWindow):
 
         help_menu = QMenu(self)
         help_menu.addAction(self.chat_action)
+        help_menu.addSeparator()
+        help_menu.addAction(self.about_action)
 
         menu_layout.addWidget(self._create_menu_button("File", file_menu))
         menu_layout.addWidget(self._create_menu_button("Modules", modules_menu))

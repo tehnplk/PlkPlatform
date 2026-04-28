@@ -32,5 +32,7 @@ View
 └─ [รายการ subwindow ที่เปิดอยู่]
 
 Help
-└─ Chat
+├─ Chat
+├─ ─────────
+└─ About
 ```

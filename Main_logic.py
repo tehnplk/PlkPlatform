@@ -18,6 +18,7 @@ from QuickVisit_logic import QuickVisitWindow
 from TelemedDaily_ui import TelemedDailyWindow
 from Theme_helper import apply_application_palette
 from Chat_logic import ChatWindow
+from version import VERSION, RELEASE
 
 
 def resolve_app_path(relative_path: str) -> Path:
@@ -182,6 +183,19 @@ class MainWindow(MainUI):
 
     def _clear_chat_reference(self) -> None:
         self._chat_subwindow = None
+
+    def open_about_dialog(self) -> None:
+        QMessageBox.about(
+            self,
+            "เกี่ยวกับ PlkPlatform",
+            (
+                f"<h3>PlkPlatform</h3>"
+                f"<p>ระบบ Utility จัดการ HIS</p>"
+                f"<p><b>เวอร์ชัน:</b> {VERSION}<br>"
+                f"<b>วันที่เผยแพร่:</b> {RELEASE}</p>"
+                f"<p>สำนักงานสาธารณสุขจังหวัดพิษณุโลก</p>"
+            ),
+        )
 
     def open_hdc_telemed_module(self) -> None:
         if self._hdc_telemed_subwindow is not None:

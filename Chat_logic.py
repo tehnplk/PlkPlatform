@@ -7,7 +7,7 @@ from Setting_helper import get_settings
 
 
 class ChatWindow(ChatUI):
-    BASE_URL = "https://platform.plkhealth.go.th/chat"
+    BASE_URL = "https://platform.plkhealth.go.th/chat/user"
 
     def __init__(self) -> None:
         super().__init__()

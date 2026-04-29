@@ -1,8 +1,8 @@
 import os
 
 
-VERSION = "0.1.15"
-RELEASE = "2026-04-28"
+VERSION = "0.1.16"
+RELEASE = "2026-04-29"
 
 # Endpoint must return JSON:
 # {"version":"0.1.1","url":"https://.../PlkPlatform.exe","sha256":"optional"}

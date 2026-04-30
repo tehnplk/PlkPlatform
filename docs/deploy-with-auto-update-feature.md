@@ -9,12 +9,12 @@ Development runs through `uv run start.py` skip update installation unless `PLK_
 - ssh adminplk@61.19.112.242 -pw Plkhe@lth00051 -p 2233
 - stable version path /var/www/wwwroot/platform.plkhealth.go.th/public/plkplatform
 - preview version path /var/www/wwwroot/platform.plkhealth.go.th/public/preview
-  ``` 
-  If dolploy preview version  not generate lastest.json
-   ```
+  - Preview deploy uploads only `PlkPlatform.exe`; do not generate or upload `latest.json` for preview builds.
 
 ## Base Url
 - https://platform.plkhealth.go.th/
+- stable download: https://platform.plkhealth.go.th/plkplatform/PlkPlatform.exe
+- preview download: https://platform.plkhealth.go.th/preview/PlkPlatform.exe
 - local port =  3011
 
 ## Tool to Upload file
@@ -57,6 +57,7 @@ The endpoint must return JSON:
 Server paths:
 - Web root: `/www/wwwroot/platform.plkhealth.go.th/` (landing page `index.html`)
 - Release dir: `/var/www/wwwroot/platform.plkhealth.go.th/public/plkplatform/` (`PlkPlatform.exe`, `latest.json`)
+- Preview dir: `/var/www/wwwroot/platform.plkhealth.go.th/public/preview/` (`PlkPlatform.exe` only)
 - Static nginx extension: `/www/server/panel/vhost/nginx/extension/platform.plkhealth.go.th/plkplatform_static.conf`
 - Backend: systemd unit `plkplatform-web.service` runs `python3 -m http.server 3011` bound to `127.0.0.1`, nginx proxies `platform.plkhealth.go.th` → `127.0.0.1:3011`.
 
@@ -108,7 +109,27 @@ plink -ssh -P 2233 -pw "Plkhe@lth00051" -batch adminplk@61.19.112.242 \
 
 Verify the printed sha256 matches step 3.
 
-The nginx static extension includes a case-insensitive `PlkPlatform.exe` location so browser/user-agent URL casing such as `plkplatform.exe` or `PlkPlatform.EXE` still downloads the same file.
+The nginx static extension includes case-insensitive `PlkPlatform.exe` locations for both stable and preview downloads, so browser/user-agent URL casing such as `plkplatform.exe` or `PlkPlatform.EXE` still downloads the same file.
+
+### Deploy Preview Build
+
+Preview builds are published under `/preview/` and are not used by auto-update. Upload only the executable:
+
+```bash
+# from project root (Windows, bash)
+pscp -P 2233 -pw "Plkhe@lth00051" -batch \
+  dist/PlkPlatform.exe \
+  adminplk@61.19.112.242:/tmp/PlkPlatform-preview.exe
+
+plink -ssh -P 2233 -pw "Plkhe@lth00051" -batch adminplk@61.19.112.242 \
+  "echo 'Plkhe@lth00051' | sudo -S mv /tmp/PlkPlatform-preview.exe /var/www/wwwroot/platform.plkhealth.go.th/public/preview/PlkPlatform.exe && \
+   echo 'Plkhe@lth00051' | sudo -S chown www:www /var/www/wwwroot/platform.plkhealth.go.th/public/preview/PlkPlatform.exe && \
+   sha256sum /var/www/wwwroot/platform.plkhealth.go.th/public/preview/PlkPlatform.exe"
+```
+
+Verify preview download:
+- `https://platform.plkhealth.go.th/preview/PlkPlatform.exe`
+- `https://platform.plkhealth.go.th/preview/plkplatform.exe` also works because nginx matches the exe path case-insensitively.
 
 ### 6. Verify
 

@@ -82,7 +82,7 @@ class MainUI(QMainWindow):
 
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("Plk Platform")
+        self.setWindowTitle(f"PlkPlatform v.{VERSION} ({RELEASE})")
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
         self.resize(1100, 680)
         self._has_positioned_on_show = False

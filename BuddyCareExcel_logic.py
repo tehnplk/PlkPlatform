@@ -9,23 +9,21 @@ from typing import Any, Optional, Tuple
 import pandas as pd
 import pymysql
 import pymysql.cursors
+import psycopg2
+import psycopg2.extras
 from dotenv import load_dotenv
 from PyQt6.QtCore import QLocale, QObject, Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QStandardItem
 from PyQt6.QtWidgets import (
     QApplication,
-    QComboBox,
     QDialog,
-    QDialogButtonBox,
     QFileDialog,
-    QFormLayout,
-    QLineEdit,
     QMessageBox,
     QProgressDialog,
-    QVBoxLayout,
 )
 
 from BuddyCareExcel_ui import BuddyCareExcelUI
+from DxDoctor_dlg import DxDoctorDialog
 from His_factory import make_his
 from PersonDetail_dlg import DlgPersonDetail
 from Setting_helper import load_db_settings, read_setting, save_settings
@@ -103,15 +101,31 @@ def load_excel_for_lookup(path: str) -> pd.DataFrame:
 
 
 def create_db_connection():
-    """Open a FRESH pymysql DictCursor connection.
+    """Open a FRESH DictCursor connection for the configured HIS database.
 
     We intentionally do not return His_factory's singleton connection because
-    callers close the returned connection, which would invalidate the shared
-    HIS instance. The HIS lookup SQL here is MySQL-dialect only.
+    callers close the returned connection, which would invalidate the shared HIS
+    instance.
     """
     settings = load_db_settings()
     if not settings.get("host") or not settings.get("user") or not settings.get("database"):
         raise ConnectionError("ไม่พบค่าเชื่อมต่อฐานข้อมูล HIS")
+    if str(settings.get("db_type") or "").lower() in ("postgres", "postgresql", "pg"):
+        from His_lib_pg import configure_pg_client_encoding
+
+        conn = psycopg2.connect(
+            host=settings["host"],
+            port=int(settings["port"]),
+            user=settings["user"],
+            password=settings["password"],
+            dbname=settings["database"],
+            cursor_factory=psycopg2.extras.RealDictCursor,
+            connect_timeout=5,
+        )
+        configure_pg_client_encoding(conn, str(settings.get("charset") or ""))
+        conn.commit()
+        return conn
+
     return pymysql.connect(
         host=settings["host"],
         port=int(settings["port"]),
@@ -122,6 +136,10 @@ def create_db_connection():
         cursorclass=pymysql.cursors.DictCursor,
         connect_timeout=5,
     )
+
+
+def is_postgres_cursor(cursor) -> bool:
+    return cursor.__class__.__module__.startswith("psycopg2")
 
 
 def lookup_cid_value(cursor, fname: str, lname: str) -> str:
@@ -183,16 +201,28 @@ def lookup_visit_info_by_date_hn(cursor, date_xls, hn: str) -> dict[str, str]:
     if not mysql_date or not normalized_hn:
         return {"วันที่ hos": "", "VN": "", "VST_TYPE": ""}
 
-    sql = (
-        "SELECT "
-        "DATE_FORMAT(vstdate, '%%Y-%%m-%%d') AS visit_date_db, "
-        "o.vn, "
-        "o.ovstist "
-        "FROM ovst o "
-        "WHERE TRIM(o.hn) = %s AND o.vstdate = %s "
-        "ORDER BY o.vsttime DESC "
-        "LIMIT 1"
-    )
+    if is_postgres_cursor(cursor):
+        sql = (
+            "SELECT "
+            "TO_CHAR(o.vstdate::date, 'YYYY-MM-DD') AS visit_date_db, "
+            "o.vn, "
+            "o.ovstist "
+            "FROM ovst o "
+            "WHERE TRIM(o.hn) = %s AND o.vstdate::date = %s::date "
+            "ORDER BY o.vsttime DESC "
+            "LIMIT 1"
+        )
+    else:
+        sql = (
+            "SELECT "
+            "DATE_FORMAT(vstdate, '%%Y-%%m-%%d') AS visit_date_db, "
+            "o.vn, "
+            "o.ovstist "
+            "FROM ovst o "
+            "WHERE TRIM(o.hn) = %s AND o.vstdate = %s "
+            "ORDER BY o.vsttime DESC "
+            "LIMIT 1"
+        )
     cursor.execute(sql, (normalized_hn, mysql_date))
     found = cursor.fetchone()
     if not found:
@@ -236,9 +266,27 @@ def load_doctor_options(cursor) -> list[tuple[str, str]]:
     sql = (
         "SELECT code, name "
         "FROM doctor "
+        "WHERE TRIM(code) <> '' "
         "ORDER BY code"
     )
     cursor.execute(sql)
+    rows = cursor.fetchall() or []
+    options = [
+        (str(row.get("code", "") or "").strip(), str(row.get("name", "") or "").strip())
+        for row in rows
+        if str(row.get("code", "") or "").strip()
+    ]
+    if options:
+        return options
+
+    fallback_sql = (
+        "SELECT DISTINCT doctor AS code, doctor AS name "
+        "FROM ovst "
+        "WHERE doctor IS NOT NULL AND TRIM(doctor) <> '' "
+        "ORDER BY doctor "
+        "LIMIT 200"
+    )
+    cursor.execute(fallback_sql)
     rows = cursor.fetchall() or []
     return [
         (str(row.get("code", "") or "").strip(), str(row.get("name", "") or "").strip())
@@ -261,64 +309,6 @@ def load_ovstist_options(cursor) -> list[tuple[str, str]]:
         for row in rows
         if str(row.get("ovstist", "") or "").strip()
     ]
-
-
-class DxDoctorDialog(QDialog):
-    def __init__(
-        self,
-        dx_code: str,
-        doctor_options: list[tuple[str, str]],
-        ovstist_options: list[tuple[str, str]],
-        default_doctor_code: str,
-        default_ovstist: str,
-        parent=None,
-    ) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("ระบุรหัสวินิจฉัย")
-        self.setModal(True)
-        self.resize(460, 180)
-
-        self.dx_input = QLineEdit(dx_code)
-        self.dx_input.setPlaceholderText("เช่น Z718")
-
-        self.doctor_combo = QComboBox()
-        for code, name in doctor_options:
-            label = f"{code} - {name}" if name else code
-            self.doctor_combo.addItem(label, code)
-
-        if default_doctor_code:
-            index = self.doctor_combo.findData(default_doctor_code)
-            if index >= 0:
-                self.doctor_combo.setCurrentIndex(index)
-
-        self.ovstist_combo = QComboBox()
-        for code, name in ovstist_options:
-            label = f"{code} - {name}" if name else code
-            self.ovstist_combo.addItem(label, code)
-
-        if default_ovstist:
-            index = self.ovstist_combo.findData(default_ovstist)
-            if index >= 0:
-                self.ovstist_combo.setCurrentIndex(index)
-
-        form = QFormLayout()
-        form.addRow("รหัสวินิจฉัย", self.dx_input)
-        form.addRow("Doctor", self.doctor_combo)
-        form.addRow("ประเภทการมา", self.ovstist_combo)
-
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-
-        layout = QVBoxLayout(self)
-        layout.addLayout(form)
-        layout.addWidget(buttons)
-
-    def values(self) -> tuple[str, str, str]:
-        dx_code = self.dx_input.text().strip().upper()
-        doctor_code = str(self.doctor_combo.currentData() or "").strip()
-        ovstist_code = str(self.ovstist_combo.currentData() or "").strip()
-        return dx_code, doctor_code, ovstist_code
 
 
 def get_person_detail_by_cid(cid: str) -> Optional[dict[str, Any]]:
@@ -842,8 +832,7 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
             return
 
         if not doctor_options:
-            QMessageBox.warning(self, "ไม่พบรายชื่อ Doctor", "ไม่พบข้อมูลในตาราง doctor")
-            return
+            doctor_options = [(default_doctor_code, default_doctor_code)]
         if not ovstist_options:
             QMessageBox.warning(self, "ไม่พบข้อมูล ovstist", "ไม่พบข้อมูลในตาราง ovstist")
             return

@@ -1,4 +1,5 @@
 # Application Deploy Guide
+*** จะ deploy ก็ต่อเมื่อ user สั่งให้ deploy เท่านั้น ***
 
 ## Auto Update
 

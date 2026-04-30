@@ -1,7 +1,6 @@
 import os
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtCore import QStandardPaths
+from PyQt6.QtCore import QStandardPaths, QSize, Qt
 from PyQt6.QtWidgets import QFileDialog, QMessageBox, QWidget, QVBoxLayout
 from PyQt6.QtWebEngineCore import QWebEngineDownloadRequest
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -10,10 +9,14 @@ from Theme_helper import current_theme
 
 
 class ChatUI(QWidget):
-    def __init__(self) -> None:
-        super().__init__()
+    INITIAL_SIZE = QSize(760, 772)
+    MINIMUM_SIZE = QSize(330, 480)
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
         self.setWindowTitle("แชท")
-        self.resize(1200, 800)
+        self.setMinimumSize(self.MINIMUM_SIZE)
+        self.resize(self.INITIAL_SIZE)
         self._active_downloads: list[QWebEngineDownloadRequest] = []
         self._setup_ui()
         self._apply_theme()
@@ -29,6 +32,11 @@ class ChatUI(QWidget):
             self._handle_download_requested
         )
         layout.addWidget(self.web_view)
+
+    def resizeEvent(self, event) -> None:
+        size = event.size()
+        print(f"[ChatWindow] resize {size.width()}x{size.height()}")
+        super().resizeEvent(event)
 
     def _handle_download_requested(self, download: QWebEngineDownloadRequest) -> None:
         suggested_name = os.path.basename(download.suggestedFileName()) or "download"

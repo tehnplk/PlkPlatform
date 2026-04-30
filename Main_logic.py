@@ -190,23 +190,27 @@ class MainWindow(MainUI):
 
     def open_chat_module(self) -> None:
         if self._chat_subwindow is not None:
-            self.mdi_area.setActiveSubWindow(self._chat_subwindow)
-            self._chat_subwindow.widget().show()
-            self._chat_subwindow.showMaximized()
+            self._chat_subwindow.show()
+            self._chat_subwindow.raise_()
+            self._chat_subwindow.activateWindow()
             return
 
-        chat_widget = ChatWindow()
-        subwindow = self.mdi_area.addSubWindow(chat_widget)
-        subwindow.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        subwindow.setWindowTitle("แชท - Chat")
-        subwindow.destroyed.connect(self._clear_chat_reference)
-        chat_widget.show()
-        subwindow.showMaximized()
-        self._chat_subwindow = subwindow
+        chat_window = ChatWindow()
+        chat_window.setWindowFlag(Qt.WindowType.Window, True)
+        chat_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        chat_window.setWindowTitle("แชท - Chat")
+        chat_window.destroyed.connect(self._clear_chat_reference)
+        chat_window.show()
+        self._chat_subwindow = chat_window
         self.statusBar().showMessage("เปิดโมดูลแชทแล้ว", 3000)
 
     def _clear_chat_reference(self) -> None:
         self._chat_subwindow = None
+
+    def closeEvent(self, event) -> None:
+        if self._chat_subwindow is not None:
+            self._chat_subwindow.close()
+        super().closeEvent(event)
 
     def open_about_dialog(self) -> None:
         QMessageBox.about(

@@ -11,6 +11,30 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from Setting_helper import load_his_settings
 
 
+def configure_pg_client_encoding(conn, requested_encoding: str | None = None) -> str:
+    """Set a PostgreSQL client encoding that works with old HOSxP Thai data."""
+    requested = (requested_encoding or "").strip().upper()
+    if requested == "UTF8MB4":
+        requested = ""
+    elif requested == "UTF-8":
+        requested = "UTF8"
+
+    with conn.cursor() as cur:
+        cur.execute("SHOW server_encoding")
+        row = cur.fetchone()
+        if isinstance(row, dict):
+            raw_server_encoding = row.get("server_encoding") or next(iter(row.values()), "")
+        else:
+            raw_server_encoding = row[0] if row else ""
+        server_encoding = str(raw_server_encoding).strip().upper()
+
+    # Many HOSxP PostgreSQL ports use SQL_ASCII with WIN874 Thai bytes.
+    # Forcing UTF8 makes psycopg2 fail while scanning Thai text columns.
+    target_encoding = requested or ("WIN874" if server_encoding == "SQL_ASCII" else "UTF8")
+    conn.set_client_encoding(target_encoding)
+    return target_encoding
+
+
 class His2Pg(QObject):
     """HOSxP PostgreSQL edition connection + visit operations.
 
@@ -60,12 +84,8 @@ class His2Pg(QObject):
             port=int(self.config_his['port']),
         )
         conn.autocommit = False
-        try:
-            with conn.cursor() as cur:
-                cur.execute("SET client_encoding = 'UTF8'")
-            conn.commit()
-        except psycopg2.Error:
-            conn.rollback()
+        configure_pg_client_encoding(conn, str(self.config_his.get("charset") or ""))
+        conn.commit()
         return conn
 
     def reconnect(self):

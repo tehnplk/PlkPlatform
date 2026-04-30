@@ -52,7 +52,8 @@ The endpoint must return JSON:
 
 Server paths:
 - Web root: `/www/wwwroot/platform.plkhealth.go.th/` (landing page `index.html`)
-- Release dir: `/www/wwwroot/platform.plkhealth.go.th/plkplatform/` (`PlkPlatform.exe`, `latest.json`)
+- Release dir: `/var/www/wwwroot/platform.plkhealth.go.th/public/plkplatform/` (`PlkPlatform.exe`, `latest.json`)
+- Static nginx extension: `/www/server/panel/vhost/nginx/extension/platform.plkhealth.go.th/plkplatform_static.conf`
 - Backend: systemd unit `plkplatform-web.service` runs `python3 -m http.server 3011` bound to `127.0.0.1`, nginx proxies `platform.plkhealth.go.th` → `127.0.0.1:3011`.
 
 ### 1. Bump version
@@ -96,12 +97,14 @@ pscp -P 2233 -pw "Plkhe@lth00051" -batch \
   adminplk@61.19.112.242:/tmp/
 
 plink -ssh -P 2233 -pw "Plkhe@lth00051" -batch adminplk@61.19.112.242 \
-  "echo 'Plkhe@lth00051' | sudo -S mv /tmp/PlkPlatform.exe /tmp/latest.json /www/wwwroot/platform.plkhealth.go.th/plkplatform/ && \
-   echo 'Plkhe@lth00051' | sudo -S chown www:www /www/wwwroot/platform.plkhealth.go.th/plkplatform/PlkPlatform.exe /www/wwwroot/platform.plkhealth.go.th/plkplatform/latest.json && \
-   sha256sum /www/wwwroot/platform.plkhealth.go.th/plkplatform/PlkPlatform.exe"
+  "echo 'Plkhe@lth00051' | sudo -S mv /tmp/PlkPlatform.exe /tmp/latest.json /var/www/wwwroot/platform.plkhealth.go.th/public/plkplatform/ && \
+   echo 'Plkhe@lth00051' | sudo -S chown www:www /var/www/wwwroot/platform.plkhealth.go.th/public/plkplatform/PlkPlatform.exe /var/www/wwwroot/platform.plkhealth.go.th/public/plkplatform/latest.json && \
+   sha256sum /var/www/wwwroot/platform.plkhealth.go.th/public/plkplatform/PlkPlatform.exe"
 ```
 
 Verify the printed sha256 matches step 3.
+
+The nginx static extension includes a case-insensitive `PlkPlatform.exe` location so browser/user-agent URL casing such as `plkplatform.exe` or `PlkPlatform.EXE` still downloads the same file.
 
 ### 6. Verify
 

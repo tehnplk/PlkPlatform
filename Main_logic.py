@@ -200,6 +200,16 @@ class MainWindow(MainUI):
         chat_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         chat_window.setWindowTitle("แชท - Chat")
         chat_window.destroyed.connect(self._clear_chat_reference)
+
+        screen = self.screen() or QApplication.primaryScreen()
+        avail = screen.availableGeometry()
+        parent_geom = self.geometry()
+        chat_w = parent_geom.width() // 3
+        chat_h = int(avail.height() * 0.8)
+        chat_x = avail.x() + avail.width() - chat_w - 3
+        chat_y = avail.y() + avail.height() - chat_h
+        chat_window.setGeometry(chat_x, chat_y, chat_w, chat_h)
+
         chat_window.show()
         self._chat_subwindow = chat_window
         self.statusBar().showMessage("เปิดโมดูลแชทแล้ว", 3000)

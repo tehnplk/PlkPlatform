@@ -261,8 +261,7 @@ def build_sql(ctx: dict[str, str], visit_date: str, visit_time: str, vn: str) ->
     claim_code = ""
     dx = "Z718"
     main_pdx = "Z71"
-    i_price_code = "3001647"
-    o_price_code = "3000002"
+    price_code = "3001647"
 
     return [
         f"set @visit_date = {sql_quote(visit_date)}",
@@ -349,7 +348,7 @@ def build_sql(ctx: dict[str, str], visit_date: str, visit_time: str, vn: str) ->
             cc = @cc
         where hos_guid = @guid2
         """.strip(),
-        f"set @icode = (select if(@visit_type = 'O', {sql_quote(o_price_code)}, {sql_quote(i_price_code)}))",
+        f"set @icode = {sql_quote(price_code)}",
         "set @price = (select price from nondrugitems where icode = @icode)",
         """
         insert into opitemrece

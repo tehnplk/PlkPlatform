@@ -4,26 +4,22 @@ import traceback
 from datetime import date, datetime
 from typing import Any
 
-from PyQt6.QtCore import QDate, QEvent, QItemSelectionModel, QLocale, Qt, QTimer
+from PyQt6.QtCore import QEvent, QItemSelectionModel, QLocale, Qt, QTimer
 from PyQt6.QtGui import QKeyEvent, QStandardItem
 from PyQt6.QtWidgets import (
     QApplication,
-    QComboBox,
-    QDateEdit,
     QDialog,
-    QDialogButtonBox,
-    QFormLayout,
-    QLineEdit,
     QMessageBox,
     QProgressDialog,
-    QVBoxLayout,
 )
 
 from BuddyCareExcel_logic import (
     create_db_connection,
     load_doctor_options,
+    load_icode_options,
     load_ovstist_options,
 )
+from DxDoctor_dlg import DxDoctorDialog
 from His_factory import make_his
 from QuickVisit_ui import RESULT_COLUMNS, QuickVisitUI
 from Setting_helper import read_setting, save_settings
@@ -31,81 +27,6 @@ from Setting_helper import read_setting, save_settings
 SEARCH_DEBOUNCE_MS = 300
 MIN_SEARCH_LEN = 2
 MAX_RESULTS = 50
-
-
-class QuickVisitDialog(QDialog):
-    """Dialog เปิด visit — เลือกวันที่ + dx + doctor + ประเภทการมา"""
-
-    def __init__(
-        self,
-        dx_code: str,
-        doctor_options: list[tuple[str, str]],
-        ovstist_options: list[tuple[str, str]],
-        default_doctor_code: str,
-        default_ovstist: str,
-        default_visit_date: date | None = None,
-        parent=None,
-    ) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("เปิด Visit")
-        self.setModal(True)
-        self.resize(460, 220)
-
-        self.date_edit = QDateEdit()
-        self.date_edit.setCalendarPopup(True)
-        self.date_edit.setDisplayFormat("dd/MM/yyyy")
-        en_locale = QLocale(QLocale.Language.English, QLocale.Country.UnitedStates)
-        self.date_edit.setLocale(en_locale)
-        cal = self.date_edit.calendarWidget()
-        if cal is not None:
-            cal.setLocale(en_locale)
-        d = default_visit_date or date.today()
-        self.date_edit.setDate(QDate(d.year, d.month, d.day))
-
-        self.dx_input = QLineEdit(dx_code)
-        self.dx_input.setPlaceholderText("เช่น Z718")
-
-        self.doctor_combo = QComboBox()
-        for code, name in doctor_options:
-            label = f"{code} - {name}" if name else code
-            self.doctor_combo.addItem(label, code)
-        if default_doctor_code:
-            idx = self.doctor_combo.findData(default_doctor_code)
-            if idx >= 0:
-                self.doctor_combo.setCurrentIndex(idx)
-
-        self.ovstist_combo = QComboBox()
-        for code, name in ovstist_options:
-            label = f"{code} - {name}" if name else code
-            self.ovstist_combo.addItem(label, code)
-        if default_ovstist:
-            idx = self.ovstist_combo.findData(default_ovstist)
-            if idx >= 0:
-                self.ovstist_combo.setCurrentIndex(idx)
-
-        form = QFormLayout()
-        form.addRow("วันที่ visit", self.date_edit)
-        form.addRow("รหัสวินิจฉัย", self.dx_input)
-        form.addRow("Doctor", self.doctor_combo)
-        form.addRow("ประเภทการมา", self.ovstist_combo)
-
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-
-        layout = QVBoxLayout(self)
-        layout.addLayout(form)
-        layout.addWidget(buttons)
-
-    def values(self) -> tuple[date, str, str, str]:
-        qd = self.date_edit.date()
-        visit_date = date(qd.year(), qd.month(), qd.day())
-        dx_code = self.dx_input.text().strip().upper()
-        doctor_code = str(self.doctor_combo.currentData() or "").strip()
-        ovstist_code = str(self.ovstist_combo.currentData() or "").strip()
-        return visit_date, dx_code, doctor_code, ovstist_code
 
 
 def _search_patients(term: str) -> list[dict[str, Any]]:
@@ -379,6 +300,7 @@ class QuickVisitWindow(QuickVisitUI):
                 with conn.cursor() as cursor:
                     doctor_options = load_doctor_options(cursor)
                     ovstist_options = load_ovstist_options(cursor)
+                    icode_options = load_icode_options(cursor)
             finally:
                 conn.close()
         except Exception as exc:  # noqa: BLE001
@@ -397,23 +319,46 @@ class QuickVisitWindow(QuickVisitUI):
         default_dx = read_setting("LAST_DX_CODE", "Z718").strip() or "Z718"
         default_doctor = read_setting("LAST_DOCTOR_CODE", "0010").strip() or "0010"
         default_ovstist = read_setting("LAST_OVSTIST", "05").strip() or "05"
-
-        dialog = QuickVisitDialog(
+        # default_price_code ไม่อ่านจาก settings — ให้ dialog auto-pick ตามวันที่ (ส-อ/จ-ศ)
+        dialog = DxDoctorDialog(
             default_dx,
             doctor_options,
             ovstist_options,
             default_doctor,
             default_ovstist,
-            date.today(),
-            self,
+            icode_options=icode_options,
+            default_visit_date=date.today(),
+            parent=self,
         )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
-        visit_date, dx_code, doctor_code, ovstist_code = dialog.values()
+        (
+            visit_date,
+            dx_code,
+            doctor_code,
+            ovstist_code,
+            price_code,
+        ) = dialog.values()
         if not dx_code or not doctor_code or not ovstist_code:
             QMessageBox.warning(self, "ข้อมูลไม่ครบ", "กรุณาระบุ dx / doctor / ovstist ให้ครบ")
             return
+        if not price_code:
+            QMessageBox.warning(
+                self,
+                "ยังไม่ได้เลือกรหัสค่าบริการ",
+                "กรุณาเลือกรหัสค่าบริการก่อน process open visit",
+            )
+            return
+        if icode_options:
+            available_icodes = {code for code, _name, _price in icode_options}
+            if price_code not in available_icodes:
+                QMessageBox.warning(
+                    self,
+                    "รหัสค่าบริการไม่ถูกต้อง",
+                    f"ไม่พบรหัส '{price_code}' ในตาราง nondrugitems",
+                )
+                return
 
         # ตรวจสอบ visit ซ้ำในวันที่เลือก (ทุกคนที่เลือก)
         duplicates: list[tuple[dict[str, Any], list[dict[str, Any]]]] = []
@@ -504,6 +449,7 @@ class QuickVisitWindow(QuickVisitUI):
                 "main_pdx": main_pdx,
                 "doctor": doctor_code,
                 "ovstist": ovstist_code,
+                "price_code": price_code,
             }
             try:
                 vn = his.openVisitHosxp(payload)

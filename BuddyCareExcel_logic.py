@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import time
 import traceback
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Optional, Tuple
 
@@ -308,6 +309,28 @@ def load_ovstist_options(cursor) -> list[tuple[str, str]]:
         (str(row.get("ovstist", "") or "").strip(), str(row.get("name", "") or "").strip())
         for row in rows
         if str(row.get("ovstist", "") or "").strip()
+    ]
+
+
+def load_icode_options(cursor) -> list[tuple[str, str, str]]:
+    sql = (
+        "SELECT icode, name, price FROM nondrugitems "
+        "WHERE TRIM(IFNULL(icode,'')) <> '' "
+        "ORDER BY icode"
+    )
+    try:
+        cursor.execute(sql)
+        rows = cursor.fetchall() or []
+    except Exception:  # noqa: BLE001
+        return []
+    return [
+        (
+            str(row.get("icode", "") or "").strip(),
+            str(row.get("name", "") or "").strip(),
+            str(row.get("price", "") or "").strip(),
+        )
+        for row in rows
+        if str(row.get("icode", "") or "").strip()
     ]
 
 
@@ -825,15 +848,31 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
         dx_code = read_setting("LAST_DX_CODE", "Z718").strip().upper() or "Z718"
         default_doctor_code = read_setting("LAST_DOCTOR_CODE", "0010").strip() or "0010"
         default_ovstist = read_setting("LAST_OVSTIST", "05").strip() or "05"
+        # default_price_code ไม่อ่านจาก settings — ให้ dialog auto-pick ตามวันที่ (ส-อ/จ-ศ)
+
+        # default visit_date จาก dataframe — ใช้แถวแรกที่ parse ได้
+        default_visit_date: date | None = None
+        for _, _row in selected_df.iterrows():
+            iso = to_mysql_date(_row.get("วันที่ xls", ""))
+            if iso:
+                try:
+                    default_visit_date = datetime.strptime(iso, "%Y-%m-%d").date()
+                    break
+                except ValueError:
+                    pass
+
         icd_row = None
         selected_doctor_code = default_doctor_code
         selected_ovstist = default_ovstist
+        selected_price_code = ""
+        selected_visit_date: date | None = default_visit_date
         try:
             icd_conn = create_db_connection()
             icd_cursor = icd_conn.cursor()
             try:
                 doctor_options = load_doctor_options(icd_cursor)
                 ovstist_options = load_ovstist_options(icd_cursor)
+                icode_options = load_icode_options(icd_cursor)
             finally:
                 icd_cursor.close()
                 icd_conn.close()
@@ -856,12 +895,22 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
                 ovstist_options,
                 selected_doctor_code,
                 selected_ovstist,
-                self,
+                icode_options=icode_options,
+                default_price_code=selected_price_code,
+                default_visit_date=selected_visit_date,
+                visit_date_editable=False,  # BuddyCare ใช้วันที่ต่อแถวจาก Excel
+                parent=self,
             )
             if dialog.exec() != QDialog.DialogCode.Accepted:
                 return
 
-            dx_code, selected_doctor_code, selected_ovstist = dialog.values()
+            (
+                selected_visit_date,
+                dx_code,
+                selected_doctor_code,
+                selected_ovstist,
+                selected_price_code,
+            ) = dialog.values()
             if not dx_code:
                 QMessageBox.warning(self, "ยังไม่ได้ระบุรหัสวินิจฉัย", "กรุณาระบุรหัสวินิจฉัยก่อน process open visit")
                 continue
@@ -871,6 +920,22 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
             if not selected_ovstist:
                 QMessageBox.warning(self, "ยังไม่ได้เลือก ovstist", "กรุณาเลือก ovstist ก่อน process open visit")
                 continue
+            if not selected_price_code:
+                QMessageBox.warning(
+                    self,
+                    "ยังไม่ได้เลือกรหัสค่าบริการ",
+                    "กรุณาเลือกรหัสค่าบริการก่อน process open visit",
+                )
+                continue
+            if icode_options:
+                available_icodes = {code for code, _name, _price in icode_options}
+                if selected_price_code not in available_icodes:
+                    QMessageBox.warning(
+                        self,
+                        "รหัสค่าบริการไม่ถูกต้อง",
+                        f"ไม่พบรหัส '{selected_price_code}' ในตาราง nondrugitems",
+                    )
+                    continue
 
             try:
                 icd_conn = create_db_connection()
@@ -936,6 +1001,7 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
                 "main_pdx": main_pdx,
                 "doctor": selected_doctor_code,
                 "ovstist": selected_ovstist,
+                "price_code": selected_price_code,
             }
 
             try:

@@ -406,8 +406,7 @@ class His2Pg(QObject):
         claim_code = data.get('claim_code') or ''
         mobile = data.get('mobile') or self.getMobileNumber(cid)
         hcode = data.get('hcode') or ''
-        i_price_code = data.get('i_price_code') or '3001647'
-        o_price_code = data.get('o_price_code') or '3000002'
+        price_code = data.get('price_code') or '3001647'
         doctor = data.get('doctor') or '0010'
         staff = data.get('staff') or 'sa'
         dep = data.get('dep') or '014'
@@ -500,8 +499,8 @@ class His2Pg(QObject):
                 pt_row = cur.fetchone()
                 pt_subtype = pt_row[0] if pt_row else None
 
-                # icode based on visit_type
-                icode = o_price_code if visit_type == 'O' else i_price_code
+                # icode กำหนดจาก payload (ผู้ใช้เลือกใน DxDoctorDialog)
+                icode = price_code
                 cur.execute(
                     "SELECT price FROM nondrugitems WHERE icode = %s", (icode,)
                 )

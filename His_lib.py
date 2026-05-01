@@ -322,8 +322,7 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
         claim_code = data.get('claim_code') or ''
         mobile = data.get('mobile') or self.getMobileNumber(cid)
         hcode = data.get('hcode') or ''
-        i_price_code = data.get('i_price_code') or '3001647'
-        o_price_code = data.get('o_price_code') or '3000002'
+        price_code = data.get('price_code') or '3001647'
         doctor = data.get('doctor') or '0010'
         staff = data.get('staff') or 'sa'
         dep = data.get('dep') or '014'
@@ -461,7 +460,7 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
                           cc = @cc
                       WHERE hos_guid = @guid2;
 
-                      set @icode := (SELECT IF(@visit_type = 'O' ,'{o_price_code}','{i_price_code}'));
+                      set @icode := '{price_code}';
                       set @price := (select price from nondrugitems where icode = @icode);
 
                       INSERT INTO opitemrece (hos_guid,vn,hn,icode,qty,unitprice,vstdate,vsttime,

@@ -648,6 +648,18 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
                 filtered_df["VN"].fillna("").astype(str).str.strip().eq("")
             ]
 
+        name_keyword = self.name_filter.text().strip()
+        if name_keyword:
+            first = filtered_df["ชื่อ"].fillna("").astype(str)
+            last = filtered_df["นามสกุล"].fillna("").astype(str)
+            full = (first + " " + last).str.strip()
+            mask = (
+                first.str.contains(name_keyword, case=False, na=False, regex=False)
+                | last.str.contains(name_keyword, case=False, na=False, regex=False)
+                | full.str.contains(name_keyword, case=False, na=False, regex=False)
+            )
+            filtered_df = filtered_df[mask]
+
         self._visible_indices = filtered_df.index.tolist()
         self.render_table(filtered_df)
         self.refresh_select_all_state()

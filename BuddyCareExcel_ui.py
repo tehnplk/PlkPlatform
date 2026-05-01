@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QProgressBar,
     QPushButton,
@@ -95,6 +96,13 @@ class BuddyCareExcelUI(QMainWindow):
         self.vn_filter.setMinimumHeight(38)
         self.vn_filter.currentIndexChanged.connect(self.apply_filters)
 
+        self.name_filter = QLineEdit()
+        self.name_filter.setPlaceholderText("กรองชื่อ-นามสกุล")
+        self.name_filter.setClearButtonEnabled(True)
+        self.name_filter.setMinimumWidth(220)
+        self.name_filter.setMinimumHeight(38)
+        self.name_filter.textChanged.connect(self.apply_filters)
+
         self.btn_open_visit = QPushButton("เปิด Visit")
         self.btn_open_visit.setMinimumHeight(40)
         self.btn_open_visit.setEnabled(False)
@@ -157,6 +165,8 @@ class BuddyCareExcelUI(QMainWindow):
         select_row.addWidget(self.select_all_checkbox)
         select_row.addSpacing(12)
         select_row.addWidget(self.vn_filter)
+        select_row.addSpacing(8)
+        select_row.addWidget(self.name_filter)
         select_row.addStretch(1)
         select_row.addWidget(self.lookup_result_label, 2)
         select_row.addStretch(1)
@@ -230,6 +240,15 @@ class BuddyCareExcelUI(QMainWindow):
                 color: {theme.disabled_text};
             }}
             QComboBox {{
+                background: {theme.surface};
+                color: {theme.text};
+                border: 2px solid {theme.border};
+                border-radius: 10px;
+                padding: 6px 10px;
+                font-size: 14px;
+                font-weight: 600;
+            }}
+            QLineEdit {{
                 background: {theme.surface};
                 color: {theme.text};
                 border: 2px solid {theme.border};

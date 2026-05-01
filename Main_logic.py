@@ -204,8 +204,8 @@ class MainWindow(MainUI):
         screen = self.screen() or QApplication.primaryScreen()
         avail = screen.availableGeometry()
         parent_geom = self.geometry()
-        chat_w = parent_geom.width() // 3
-        chat_h = int(avail.height() * 0.8)
+        chat_w = parent_geom.width() // 3 + 40
+        chat_h = int(avail.height() * 0.8) + 40
         chat_x = avail.x() + avail.width() - chat_w - 3
         chat_y = avail.y() + avail.height() - chat_h
         chat_window.setGeometry(chat_x, chat_y, chat_w, chat_h)

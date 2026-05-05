@@ -4,6 +4,7 @@ __pycache__/
 /build
 /dist
 /update_config.json
+/.claude
 
 # Patient-data exports / logs
 /visit_err.txt

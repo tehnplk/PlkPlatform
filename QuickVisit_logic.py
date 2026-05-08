@@ -126,6 +126,7 @@ class QuickVisitWindow(QuickVisitUI):
     def __init__(self) -> None:
         super().__init__()
         self.rows: list[dict[str, Any]] = []
+        self._opening_visits = False
 
         # debounce timer
         self._search_timer = QTimer(self)
@@ -268,6 +269,9 @@ class QuickVisitWindow(QuickVisitUI):
 
     # ---------------------------------------------------------------- open visit
     def on_open_visit_clicked(self) -> None:
+        if self._opening_visits:
+            return
+
         row_indices = self._selected_row_indices()
         if not row_indices:
             QMessageBox.information(self, "เลือกคนไข้", "กรุณาเลือกคนไข้ก่อน")
@@ -419,6 +423,9 @@ class QuickVisitWindow(QuickVisitUI):
             )
             return
 
+        self._opening_visits = True
+        self.open_visit_button.setEnabled(False)
+
         success: list[tuple[str, str]] = []
         failed: list[tuple[str, str]] = []
         cancelled = False
@@ -466,6 +473,8 @@ class QuickVisitWindow(QuickVisitUI):
             QApplication.processEvents()
 
         progress.close()
+        self._opening_visits = False
+        self._update_open_button_state()
 
         if success:
             save_settings({

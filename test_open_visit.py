@@ -122,6 +122,17 @@ def create_visit_number(cur: pymysql.cursors.Cursor, visit_date: date) -> tuple[
         time.sleep(1.1)
 
 
+def get_next_ovst_seq_id(conn: pymysql.connections.Connection) -> int:
+    conn.commit()
+    with conn.cursor() as cur:
+        cur.execute("select get_serialnumber('ovst_seq_id')")
+        row = cur.fetchone()
+    conn.commit()
+    if not row:
+        raise RuntimeError("cannot get ovst_seq_id")
+    return int(row[0] or 0)
+
+
 def load_patient_context(cur: pymysql.cursors.Cursor, cid: str, visit_date: date) -> dict[str, str]:
     patient = fetch_one(
         cur,
@@ -253,7 +264,7 @@ def load_patient_context(cur: pymysql.cursors.Cursor, cid: str, visit_date: date
     }
 
 
-def build_sql(ctx: dict[str, str], visit_date: str, visit_time: str, vn: str) -> list[str]:
+def build_sql(ctx: dict[str, str], visit_date: str, visit_time: str, vn: str, ovst_seq_id: int) -> list[str]:
     guid1 = "{" + str(uuid.uuid4()).upper() + "}"
     guid2 = "{" + str(uuid.uuid4()).upper() + "}"
     cc = "ให้บริการ telemedicine"
@@ -289,7 +300,7 @@ def build_sql(ctx: dict[str, str], visit_date: str, visit_time: str, vn: str) ->
         "set @vsttime = @visit_time",
         f"set @guid1 = {sql_quote(guid1)}",
         f"set @guid2 = {sql_quote(guid2)}",
-        "set @ovst_seq_id = (select get_serialnumber('ovst_seq_id'))",
+        f"set @ovst_seq_id = {ovst_seq_id}",
         "set @nhso_seq_id = cast(@ovst_seq_id as char character set utf8)",
         "set @ovst_q_today = concat('ovst-q-',left(@vn,6))",
         "set @ovst_q = (select get_serialnumber(@ovst_q_today))",
@@ -525,12 +536,13 @@ def main() -> None:
         with conn.cursor() as cur:
             context = load_patient_context(cur, args.cid, visit_date)
             vn, visit_time = create_visit_number(cur, visit_date)
-            statements = build_sql(context, args.vst_date, visit_time, vn)
+            ovst_seq_id = get_next_ovst_seq_id(conn)
+            statements = build_sql(context, args.vst_date, visit_time, vn, ovst_seq_id)
             sql_path = write_sql_file(vn, args.cid, context["fullname"], statements)
 
         if args.dry_run:
             print(f"dry_run=1 sql_file={sql_path}")
-            print(f"cid={args.cid} hn={context['hn']} vn={vn} visit_date={args.vst_date} visit_time={visit_time}")
+            print(f"cid={args.cid} hn={context['hn']} vn={vn} ovst_seq_id={ovst_seq_id} visit_date={args.vst_date} visit_time={visit_time}")
             return
 
         execute_statements(conn, statements)

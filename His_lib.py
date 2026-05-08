@@ -134,6 +134,29 @@ class His2(QObject):
                 return vn
             time.sleep(1.1)
 
+    @staticmethod
+    def _is_duplicate_ovst_seq_id_error(error: pymysql.Error) -> bool:
+        err_code = error.args[0] if error.args else 0
+        err_text = str(error)
+        return err_code == 1062 and 'ix_seq_id' in err_text
+
+    def _get_next_ovst_seq_id(self):
+        if self.vendor != 'hosxp_pcu':
+            return 0
+        if not self.ensure_connection():
+            return None
+        cur = self.conn.cursor()
+        try:
+            self.conn.commit()
+            cur.execute("select get_serialnumber('ovst_seq_id')")
+            row = cur.fetchone()
+            self.conn.commit()
+            if not row:
+                return None
+            return int(row[0] or 0)
+        finally:
+            cur.close()
+
     def getPerson(self, cid: str):
         print('His getPerson',cid,self.vendor)
         sql = f""" SELECT t.hn ,t.cid 
@@ -374,6 +397,10 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
             person_id = str(visit_rights['person'].get('person_id') or '').strip()
 
         vn = self.createVisitNumber(visit_date)
+        ovst_seq_id = self._get_next_ovst_seq_id()
+        if not ovst_seq_id:
+            self.signal.emit({'status': 'ไม่สามารถขอเลข ovst_seq_id จาก HIS ได้'})
+            return None
 
         sql = f"""  
 
@@ -407,7 +434,7 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
                       set @guid1 = '{uid1}';
                       set @guid2 = '{uid2}';
 
-                      set @ovst_seq_id = (select get_serialnumber('ovst_seq_id'));
+                      set @ovst_seq_id = {ovst_seq_id};
                       set @nhso_seq_id = @ovst_seq_id;
                       set @nhso_seq_id = CAST(@nhso_seq_id AS CHAR CHARACTER SET utf8);
                       set @ovst_q_today = concat('ovst-q-',LEFT(@vn,6));
@@ -571,6 +598,19 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
                     time.sleep(0.5)
                     continue
                 self.conn.rollback()
+                if self._is_duplicate_ovst_seq_id_error(e) and attempt == 0:
+                    new_ovst_seq_id = self._get_next_ovst_seq_id()
+                    if not new_ovst_seq_id:
+                        result = None
+                        break
+                    sql = sql.replace(
+                        f"set @ovst_seq_id = {ovst_seq_id};",
+                        f"set @ovst_seq_id = {new_ovst_seq_id};",
+                    )
+                    ovst_seq_id = new_ovst_seq_id
+                    print("ovst_seq seq_id duplicate, get new serial and retry openVisitHosxp...")
+                    time.sleep(0.2)
+                    continue
                 print('visit err', e)
                 self.signal.emit({'status': e})
                 with open('visit_err.txt', 'a+', encoding='utf-8') as f:
@@ -583,6 +623,19 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
             except pymysql.Error as e:
                 cur.close()
                 self.conn.rollback()
+                if self._is_duplicate_ovst_seq_id_error(e) and attempt == 0:
+                    new_ovst_seq_id = self._get_next_ovst_seq_id()
+                    if not new_ovst_seq_id:
+                        result = None
+                        break
+                    sql = sql.replace(
+                        f"set @ovst_seq_id = {ovst_seq_id};",
+                        f"set @ovst_seq_id = {new_ovst_seq_id};",
+                    )
+                    ovst_seq_id = new_ovst_seq_id
+                    print("ovst_seq seq_id duplicate, get new serial and retry openVisitHosxp...")
+                    time.sleep(0.2)
+                    continue
                 print('visit err', e)
                 self.signal.emit({'status': e})
                 with open('visit_err.txt', 'a+', encoding='utf-8') as f:

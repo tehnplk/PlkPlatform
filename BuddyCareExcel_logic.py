@@ -313,11 +313,7 @@ def load_ovstist_options(cursor) -> list[tuple[str, str]]:
 
 
 def load_icode_options(cursor) -> list[tuple[str, str, str]]:
-    sql = (
-        "SELECT icode, name, price FROM nondrugitems "
-        "WHERE TRIM(IFNULL(icode,'')) <> '' "
-        "ORDER BY icode"
-    )
+    sql = "SELECT icode, name, price FROM nondrugitems ORDER BY icode"
     try:
         cursor.execute(sql)
         rows = cursor.fetchall() or []
@@ -419,6 +415,10 @@ class BuddyCareExcelWorker(QObject):
 
 
 class BuddyCareExcelWindow(BuddyCareExcelUI):
+    def __init__(self) -> None:
+        super().__init__()
+        self._opening_visits = False
+
     def show_progress_splash(self, title: str, message: str, maximum: int) -> None:
         self.close_progress_splash()
         self.progress_splash = QProgressDialog(message, None, 0, max(maximum, 0), self)
@@ -807,6 +807,9 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
         self.select_all_checkbox.blockSignals(False)
 
     def on_open_visit_clicked(self) -> None:
+        if self._opening_visits:
+            return
+
         if self.df is None or self.df.empty:
             QMessageBox.information(self, "ไม่มีข้อมูล", "กรุณาเลือกไฟล์ Excel ก่อน")
             return
@@ -974,6 +977,9 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
             QMessageBox.critical(self, "เชื่อมต่อ HIS ไม่สำเร็จ", "ไม่สามารถเชื่อมต่อฐานข้อมูล HIS ได้")
             return
 
+        self._opening_visits = True
+        self.btn_open_visit.setEnabled(False)
+
         success_count = 0
         error_messages: list[str] = []
         total_selected = len(selected_df)
@@ -1041,6 +1047,7 @@ class BuddyCareExcelWindow(BuddyCareExcelUI):
             )
 
         self.close_progress_splash()
+        self._opening_visits = False
         self.apply_filters()
 
         if success_count > 0:

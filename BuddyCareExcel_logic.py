@@ -29,7 +29,7 @@ from His_factory import make_his
 from PersonDetail_dlg import DlgPersonDetail
 from Setting_helper import load_db_settings, read_setting, save_settings
 
-PREFIXES = ["นางสาว", "น.ส.", "นาง", "นาย", "ด.ญ.", "ด.ช.", "พระ"]
+PREFIXES = ["นางสาว", "เด็กหญิง", "เด็กชาย", "น.ส.", "นาง", "นาย", "ด.ญ.", "ด.ช.", "พระ"]
 REQUIRED_COLUMNS = ["วันที่", "ชื่อ-สกุล", "สถานะ"]
 
 

@@ -14,6 +14,7 @@ from F43Export_logic import F43ExportWindow
 from HdcTelemed_logic import HdcTelemedLogic
 from HisSetting_dlg import DlgHisSetting
 from Main_ui import MainUI
+from PatientList_logic import PatientListWindow
 from QuickVisit_logic import QuickVisitWindow
 from Query_logic import QueryWindow
 from TelemedDaily_ui import TelemedDailyWindow
@@ -34,6 +35,7 @@ class MainWindow(MainUI):
         self._datacenter_subwindow = None
         self._telemed_daily_subwindow = None
         self._quick_visit_subwindow = None
+        self._patient_list_subwindow = None
         self._f43_export_subwindow = None
         self._chat_subwindow = None
         self._hdc_telemed_subwindow = None
@@ -147,6 +149,26 @@ class MainWindow(MainUI):
 
     def _clear_quick_visit_reference(self) -> None:
         self._quick_visit_subwindow = None
+
+    def open_patient_list_module(self) -> None:
+        if self._patient_list_subwindow is not None:
+            self.mdi_area.setActiveSubWindow(self._patient_list_subwindow)
+            self._patient_list_subwindow.widget().show()
+            self._patient_list_subwindow.showMaximized()
+            return
+
+        patient_list_widget = PatientListWindow()
+        subwindow = self.mdi_area.addSubWindow(patient_list_widget)
+        subwindow.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        subwindow.setWindowTitle("Patient List - PatientList")
+        subwindow.destroyed.connect(self._clear_patient_list_reference)
+        patient_list_widget.show()
+        subwindow.showMaximized()
+        self._patient_list_subwindow = subwindow
+        self.statusBar().showMessage("เปิด Patient List แล้ว", 3000)
+
+    def _clear_patient_list_reference(self) -> None:
+        self._patient_list_subwindow = None
 
     def open_query_module(self) -> None:
         if self._query_subwindow is not None:

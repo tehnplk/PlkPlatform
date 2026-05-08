@@ -7,6 +7,7 @@ Modules
 ├─ 🛠️ ระบบช่วยงาน ▶
 │   ├─ Authen
 │   ├─ Quick Visit
+│   ├─ Patient List
 │   ├─ คุณภาพข้อมูล
 │   ├─ จัดเก็บรายได้
 │   └─ AI Assistant

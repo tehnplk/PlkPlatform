@@ -410,6 +410,10 @@ class MainUI(QMainWindow):
         self.ai_assistant_action.setStatusTip("เปิดโมดูล AI Assistant")
         self.ai_assistant_action.triggered.connect(self.open_ai_assistant_module)
 
+        self.patient_list_action = QAction("Patient List", self)
+        self.patient_list_action.setStatusTip("เปิดรายการผู้เข้ารับบริการ")
+        self.patient_list_action.triggered.connect(self.open_patient_list_module)
+
         self.data_quality_action = QAction("คุณภาพข้อมูล", self)
         self.data_quality_action.setStatusTip("เปิดโมดูลคุณภาพข้อมูล")
         self.data_quality_action.triggered.connect(self.open_data_quality_module)
@@ -529,6 +533,7 @@ class MainUI(QMainWindow):
         helpers_menu = QMenu("🛠️ ระบบช่วยงาน", modules_menu)
         helpers_menu.addAction(self.authen_action)
         helpers_menu.addAction(self.quick_visit_action)
+        helpers_menu.addAction(self.patient_list_action)
         helpers_menu.addAction(self.data_quality_action)
         helpers_menu.addAction(self.revenue_storage_action)
         helpers_menu.addAction(self.ai_assistant_action)

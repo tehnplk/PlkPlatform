@@ -11,6 +11,15 @@ import time
 from Setting_helper import load_his_settings
 
 
+def _patient_aid(patient: dict) -> str:
+    parts = (
+        patient.get('chwpart') or '',
+        patient.get('amppart') or '',
+        patient.get('tmbpart') or '',
+    )
+    return ''.join(str(part).strip() for part in parts)[:6]
+
+
 class His2(QObject):
     signal = pyqtSignal(dict)
     OVST_SEQ_SERIAL_KEYS = ('ovst_seq_id', 'seq_id')
@@ -441,7 +450,7 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
         age_m = int((all_d.days % 365) / 30)
         age_d = ((all_d.days % 365) % 30)
 
-        aid = f"{patient['chwpart']}{patient['amppart']}{patient['tmbpart']}"
+        aid = _patient_aid(patient)
         moopart = patient['moopart']
 
         # สิทธิรักษา
@@ -807,7 +816,7 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
         age_m = int((all_d.days % 365) / 30)
         age_d = ((all_d.days % 365) % 30)
 
-        aid = f"{patient['chwpart']}{patient['amppart']}{patient['tmbpart']}"
+        aid = _patient_aid(patient)
         moopart = patient['moopart']
 
         # สิทธิรักษา

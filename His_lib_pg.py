@@ -11,6 +11,15 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from Setting_helper import load_his_settings
 
 
+def _patient_aid(patient: dict) -> str:
+    parts = (
+        patient.get('chwpart') or '',
+        patient.get('amppart') or '',
+        patient.get('tmbpart') or '',
+    )
+    return ''.join(str(part).strip() for part in parts)[:6]
+
+
 def configure_pg_client_encoding(conn, requested_encoding: str | None = None) -> str:
     """Set a PostgreSQL client encoding that works with old HOSxP Thai data."""
     requested = (requested_encoding or "").strip().upper()
@@ -499,7 +508,7 @@ class His2Pg(QObject):
         else:
             age_y = age_m = age_d = 0
 
-        aid = f"{patient['chwpart']}{patient['amppart']}{patient['tmbpart']}"
+        aid = _patient_aid(patient)
         moopart = patient['moopart']
 
         _pttype = self.getPttypeFromInscl(sub_inscl) if sub_inscl else None

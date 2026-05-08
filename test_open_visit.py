@@ -228,7 +228,7 @@ def load_patient_context(cur: pymysql.cursors.Cursor, cid: str, visit_date: date
     chwpart = str(patient.get("chwpart") or "")
     amppart = str(patient.get("amppart") or "")
     tmbpart = str(patient.get("tmbpart") or "")
-    aid = f"{chwpart}{amppart}{tmbpart}"
+    aid = f"{chwpart or ''}{amppart or ''}{tmbpart or ''}"[:6]
 
     return {
         "cid": cid,

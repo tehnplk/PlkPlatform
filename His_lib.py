@@ -13,11 +13,13 @@ from Setting_helper import load_his_settings
 
 class His2(QObject):
     signal = pyqtSignal(dict)
+    OVST_SEQ_SERIAL_KEYS = ('ovst_seq_id', 'seq_id')
 
     def __init__(self):
         super(His2, self).__init__()
         self.conn = None
         self.his_is_connect = False
+        self._ovst_seq_serial_key = None
         self.config_his = self._load_his_settings()
         print('His Connect', self.config_his)
         self.vendor = self.config_his['his']
@@ -77,6 +79,12 @@ class His2(QObject):
         except pymysql.Error:
             self.reconnect()
         return self.his_is_connect
+
+    def _log_visit_err(self, table_transactioning: str, err) -> None:
+        date_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        message = str(err).replace("\r\n", " ").replace("\n", " ")
+        with open('visit_err.txt', 'a+', encoding='utf-8') as f:
+            f.write(f"{date_time} , {table_transactioning} , {message}\n")
 
     def get_cursor(self, dict_cursor=False):
         if not self.ensure_connection():
@@ -140,7 +148,45 @@ class His2(QObject):
         err_text = str(error)
         return err_code == 1062 and 'ix_seq_id' in err_text
 
-    def _get_next_ovst_seq_id(self):
+    def _resolve_ovst_seq_serial_key(self, cur, force_refresh: bool = False) -> str:
+        if self._ovst_seq_serial_key and not force_refresh:
+            return self._ovst_seq_serial_key
+
+        placeholders = ','.join(['%s'] * len(self.OVST_SEQ_SERIAL_KEYS))
+        cur.execute("select coalesce(max(seq_id), 0) from ovst_seq")
+        row = cur.fetchone()
+        max_seq_id = int((row[0] if row else 0) or 0)
+
+        cur.execute(
+            f"select name, coalesce(serial_no, 0) from serial where name in ({placeholders})",
+            self.OVST_SEQ_SERIAL_KEYS,
+        )
+        serial_rows = cur.fetchall()
+        serial_values = {str(name): int(serial_no or 0) for name, serial_no in serial_rows}
+
+        selected_key = self.OVST_SEQ_SERIAL_KEYS[0]
+        for key in self.OVST_SEQ_SERIAL_KEYS:
+            if serial_values.get(key) == max_seq_id:
+                selected_key = key
+                break
+        else:
+            safe_candidates = [
+                (serial_no, key)
+                for key, serial_no in serial_values.items()
+                if serial_no >= max_seq_id
+            ]
+            if safe_candidates:
+                selected_key = min(safe_candidates)[1]
+            elif serial_values:
+                selected_key = max(
+                    serial_values.items(),
+                    key=lambda item: item[1],
+                )[0]
+
+        self._ovst_seq_serial_key = selected_key
+        return selected_key
+
+    def _get_next_ovst_seq_id(self, force_refresh_serial_key: bool = False):
         if self.vendor != 'hosxp_pcu':
             return 0
         if not self.ensure_connection():
@@ -148,7 +194,8 @@ class His2(QObject):
         cur = self.conn.cursor()
         try:
             self.conn.commit()
-            cur.execute("select get_serialnumber('ovst_seq_id')")
+            serial_key = self._resolve_ovst_seq_serial_key(cur, force_refresh_serial_key)
+            cur.execute("select get_serialnumber(%s)", (serial_key,))
             row = cur.fetchone()
             self.conn.commit()
             if not row:
@@ -599,7 +646,7 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
                     continue
                 self.conn.rollback()
                 if self._is_duplicate_ovst_seq_id_error(e) and attempt == 0:
-                    new_ovst_seq_id = self._get_next_ovst_seq_id()
+                    new_ovst_seq_id = self._get_next_ovst_seq_id(force_refresh_serial_key=True)
                     if not new_ovst_seq_id:
                         result = None
                         break
@@ -613,8 +660,7 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
                     continue
                 print('visit err', e)
                 self.signal.emit({'status': e})
-                with open('visit_err.txt', 'a+', encoding='utf-8') as f:
-                    f.write(str(e))
+                self._log_visit_err('openVisitHosxp', e)
                 with open('sql_vst_hos_err.txt', 'a+', encoding='utf-8') as f:
                     n = str("\r\n##############################################################################")
                     f.write(str(sql) + n)
@@ -624,7 +670,7 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
                 cur.close()
                 self.conn.rollback()
                 if self._is_duplicate_ovst_seq_id_error(e) and attempt == 0:
-                    new_ovst_seq_id = self._get_next_ovst_seq_id()
+                    new_ovst_seq_id = self._get_next_ovst_seq_id(force_refresh_serial_key=True)
                     if not new_ovst_seq_id:
                         result = None
                         break
@@ -638,8 +684,7 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
                     continue
                 print('visit err', e)
                 self.signal.emit({'status': e})
-                with open('visit_err.txt', 'a+', encoding='utf-8') as f:
-                    f.write(str(e))
+                self._log_visit_err('openVisitHosxp', e)
                 with open('sql_vst_hos_err.txt', 'a+', encoding='utf-8') as f:
                     n = str("\r\n##############################################################################")
                     f.write(str(sql) + n)
@@ -783,8 +828,7 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
                 self.conn.rollback()
                 print('update visit', e)
                 self.signal.emit({'status': e})
-                with open('visit_err.txt', 'a+', encoding='utf-8') as f:
-                    f.write(str(e))
+                self._log_visit_err('updateVisitHosxp', e)
                 with open('sql_vst_hos_err.txt', 'a+', encoding='utf-8') as f:
                     n = str("\r\n##############################################################################")
                     f.write(str(sql) + n)
@@ -795,8 +839,7 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
                 self.conn.rollback()
                 print('update visit', e)
                 self.signal.emit({'status': e})
-                with open('visit_err.txt', 'a+', encoding='utf-8') as f:
-                    f.write(str(e))
+                self._log_visit_err('updateVisitHosxp', e)
                 with open('sql_vst_hos_err.txt', 'a+', encoding='utf-8') as f:
                     n = str("\r\n##############################################################################")
                     f.write(str(sql) + n)

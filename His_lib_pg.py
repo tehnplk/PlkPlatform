@@ -45,11 +45,13 @@ class His2Pg(QObject):
     """
 
     signal = pyqtSignal(dict)
+    OVST_SEQ_SERIAL_KEYS = ('ovst_seq_id', 'seq_id')
 
     def __init__(self):
         super().__init__()
         self.conn = None
         self.his_is_connect = False
+        self._ovst_seq_serial_key = None
         self.config_his = self._load_his_settings()
         print('His-PG Connect', self.config_his)
         self.vendor = self.config_his['his']
@@ -385,6 +387,43 @@ class His2Pg(QObject):
         row = cur.fetchone()
         return str(row[0] if row else '')
 
+    def _resolve_ovst_seq_serial_key(self, cur, force_refresh: bool = False) -> str:
+        if self._ovst_seq_serial_key and not force_refresh:
+            return self._ovst_seq_serial_key
+
+        cur.execute("SELECT COALESCE(MAX(seq_id), 0) FROM ovst_seq")
+        row = cur.fetchone()
+        max_seq_id = int((row[0] if row else 0) or 0)
+
+        cur.execute(
+            "SELECT name, COALESCE(serial_no, 0) FROM serial WHERE name = ANY(%s)",
+            (list(self.OVST_SEQ_SERIAL_KEYS),),
+        )
+        serial_rows = cur.fetchall()
+        serial_values = {str(name): int(serial_no or 0) for name, serial_no in serial_rows}
+
+        selected_key = self.OVST_SEQ_SERIAL_KEYS[0]
+        for key in self.OVST_SEQ_SERIAL_KEYS:
+            if serial_values.get(key) == max_seq_id:
+                selected_key = key
+                break
+        else:
+            safe_candidates = [
+                (serial_no, key)
+                for key, serial_no in serial_values.items()
+                if serial_no >= max_seq_id
+            ]
+            if safe_candidates:
+                selected_key = min(safe_candidates)[1]
+            elif serial_values:
+                selected_key = max(
+                    serial_values.items(),
+                    key=lambda item: item[1],
+                )[0]
+
+        self._ovst_seq_serial_key = selected_key
+        return selected_key
+
     def openVisitHosxp(self, data: dict):
         if not self.ensure_connection():
             print("his-pg not connect")
@@ -474,7 +513,8 @@ class His2Pg(QObject):
             cur = self.conn.cursor()
             try:
                 # HOSxP serial numbers
-                ovst_seq_id = self._get_serialnumber(cur, 'ovst_seq_id')
+                ovst_seq_serial_key = self._resolve_ovst_seq_serial_key(cur)
+                ovst_seq_id = self._get_serialnumber(cur, ovst_seq_serial_key)
                 ovst_q_key = f"ovst-q-{vn[:6]}"
                 ovst_q = self._get_serialnumber(cur, ovst_q_key)
                 ovst_diag_id = self._get_serialnumber(cur, 'ovst_diag_id')
@@ -978,8 +1018,10 @@ class His2Pg(QObject):
 
     def _log_err(self, err, note: str):
         try:
+            date_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            message = str(err).replace("\r\n", " ").replace("\n", " ")
             with open('visit_err.txt', 'a+', encoding='utf-8') as f:
-                f.write(f"{note}: {err}\n")
+                f.write(f"{date_time} , {note} , {message}\n")
         except OSError:
             pass
 

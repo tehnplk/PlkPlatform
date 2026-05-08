@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import psycopg2
 import psycopg2.extras
@@ -168,36 +168,52 @@ class His2Pg(QObject):
                     pass
                 raise
 
-    def createVisitNumber(self, visit_date: str | None = None) -> str | None:
+    def createVisitNumber(self) -> str | None:
         if self.vendor != 'hosxp_pcu':
             return '0'
 
-        try:
-            visit_date_obj = (
-                datetime.strptime(str(visit_date), '%Y-%m-%d').date()
-                if visit_date
-                else date.today()
-            )
-        except ValueError:
-            visit_date_obj = date.today()
+        save_datetime = datetime.now().replace(microsecond=0)
+        save_date = save_datetime.date()
 
-        prefix = f"{(visit_date_obj.year + 543) % 100:02d}{visit_date_obj.month:02d}{visit_date_obj.day:02d}"
+        prefix = f"{(save_date.year + 543) % 100:02d}{save_date.month:02d}{save_date.day:02d}"
 
-        while True:
-            now = datetime.now()
-            vn = f"{prefix}{now:%H%M%S}"
-            cur = self.execute_with_retry(
-                "SELECT COUNT(*) AS c FROM ovst WHERE vn = %s",
-                (vn,),
-                dict_cursor=True,
-            )
-            if cur is None:
-                return None
-            row = cur.fetchone()
-            cur.close()
-            if int(row['c'] or 0) == 0:
-                return vn
-            time.sleep(1.1)
+        day_start = datetime.combine(save_date, datetime.min.time())
+        day_end = day_start + timedelta(days=1)
+
+        cur = self.execute_with_retry(
+            "SELECT MAX(vn) AS latest_vn FROM ovst WHERE vn LIKE %s",
+            (f"{prefix}%",),
+            dict_cursor=True,
+        )
+        if cur is None:
+            return None
+        row = cur.fetchone()
+        cur.close()
+
+        candidate_time = save_datetime
+        latest_vn = str(row.get('latest_vn') or '') if row else ''
+        if latest_vn:
+            try:
+                latest_time = day_start + timedelta(
+                    hours=int(latest_vn[-6:-4]),
+                    minutes=int(latest_vn[-4:-2]),
+                    seconds=int(latest_vn[-2:]) + 1,
+                )
+                candidate_time = max(candidate_time, latest_time)
+            except (TypeError, ValueError):
+                pass
+
+        if candidate_time >= day_end:
+            return None
+
+        return f"{prefix}{candidate_time:%H%M%S}"
+
+    @staticmethod
+    def _visit_time_from_vn(vn: str) -> str:
+        vn = str(vn or '')
+        if len(vn) < 6:
+            return datetime.now().strftime('%H:%M:%S')
+        return f"{vn[-6:-4]}:{vn[-4:-2]}:{vn[-2:]}"
 
     def getPerson(self, cid: str):
         print('His-PG getPerson', cid, self.vendor)
@@ -387,6 +403,10 @@ class His2Pg(QObject):
         row = cur.fetchone()
         return str(row[0] if row else '')
 
+    @staticmethod
+    def _is_duplicate_vn_error(error: psycopg2.Error, vn: str) -> bool:
+        return getattr(error, "pgcode", None) == "23505" and str(vn) in str(error)
+
     def _resolve_ovst_seq_serial_key(self, cur, force_refresh: bool = False) -> str:
         if self._ovst_seq_serial_key and not force_refresh:
             return self._ovst_seq_serial_key
@@ -501,12 +521,13 @@ class His2Pg(QObject):
         if str(pttype_no) == 'None':
             pttype_no = ''
 
-        vn = self.createVisitNumber(visit_date)
+        vn = self.createVisitNumber()
         if vn is None:
             return None
+        vsttime = self._visit_time_from_vn(vn)
 
         result = vn
-        for attempt in range(2):
+        for attempt in range(5):
             if not self.ensure_connection():
                 print("his-pg not connect")
                 return None
@@ -871,6 +892,17 @@ class His2Pg(QObject):
                 except psycopg2.Error:
                     pass
                 self._rollback_quiet()
+                if self._is_duplicate_vn_error(e, vn) and attempt < 4:
+                    new_vn = self.createVisitNumber()
+                    if not new_vn:
+                        result = None
+                        break
+                    vn = new_vn
+                    vsttime = self._visit_time_from_vn(vn)
+                    result = vn
+                    print("vn duplicate, get new vn and retry openVisitHosxpPg...")
+                    time.sleep(0.2)
+                    continue
                 print('visit err', e)
                 self.signal.emit({'status': str(e)})
                 self._log_err(e, 'openVisitHosxpPg failed')

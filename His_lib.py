@@ -4,7 +4,7 @@ from pymysql.constants import CLIENT
 from PyQt6.QtCore import pyqtSignal
 import uuid
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import base64
 import time
 
@@ -116,37 +116,62 @@ class His2(QObject):
     def updateStructor(self):
         pass
 
-    def createVisitNumber(self, visit_date: str | None = None):
+    def createVisitNumber(self):
         if self.vendor != 'hosxp_pcu':
             return '0'
 
-        try:
-            visit_date_obj = datetime.strptime(str(visit_date), '%Y-%m-%d').date() if visit_date else date.today()
-        except ValueError:
-            visit_date_obj = date.today()
+        save_datetime = datetime.now().replace(microsecond=0)
+        save_date = save_datetime.date()
 
-        prefix = f"{(visit_date_obj.year + 543) % 100:02d}{visit_date_obj.month:02d}{visit_date_obj.day:02d}"
+        prefix = f"{(save_date.year + 543) % 100:02d}{save_date.month:02d}{save_date.day:02d}"
 
-        while True:
-            now = datetime.now()
-            vn = f"{prefix}{now:%H%M%S}"
-            cur = self.execute_with_retry(
-                f"select count(*) as c from ovst where vn = '{vn}'",
-                dict_cursor=True
-            )
-            if cur is None:
-                return None
-            row = cur.fetchone()
-            cur.close()
-            if int(row['c'] or 0) == 0:
-                return vn
-            time.sleep(1.1)
+        day_start = datetime.combine(save_date, datetime.min.time())
+        day_end = day_start + timedelta(days=1)
+        cur = self.execute_with_retry(
+            f"select max(vn) as latest_vn from ovst where vn like '{prefix}%'",
+            dict_cursor=True,
+        )
+        if cur is None:
+            return None
+        row = cur.fetchone()
+        cur.close()
+
+        candidate_time = save_datetime
+        latest_vn = str(row.get('latest_vn') or '') if row else ''
+        if latest_vn:
+            try:
+                latest_time = day_start + timedelta(
+                    hours=int(latest_vn[-6:-4]),
+                    minutes=int(latest_vn[-4:-2]),
+                    seconds=int(latest_vn[-2:]) + 1,
+                )
+                candidate_time = max(candidate_time, latest_time)
+            except (TypeError, ValueError):
+                pass
+
+        if candidate_time >= day_end:
+            return None
+
+        return f"{prefix}{candidate_time:%H%M%S}"
+
+    @staticmethod
+    def _visit_time_from_vn(vn: str) -> str:
+        vn = str(vn or '')
+        if len(vn) < 6:
+            return datetime.now().strftime('%H:%M:%S')
+        return f"{vn[-6:-4]}:{vn[-4:-2]}:{vn[-2:]}"
 
     @staticmethod
     def _is_duplicate_ovst_seq_id_error(error: pymysql.Error) -> bool:
         err_code = error.args[0] if error.args else 0
         err_text = str(error)
         return err_code == 1062 and 'ix_seq_id' in err_text
+
+    @staticmethod
+    def _is_duplicate_vn_error(error: pymysql.Error, vn: str) -> bool:
+        err_code = error.args[0] if error.args else 0
+        err_text = str(error)
+        return err_code == 1062 and str(vn) in err_text
 
     def _resolve_ovst_seq_serial_key(self, cur, force_refresh: bool = False) -> str:
         if self._ovst_seq_serial_key and not force_refresh:
@@ -443,7 +468,10 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
         if visit_rights.get('person'):
             person_id = str(visit_rights['person'].get('person_id') or '').strip()
 
-        vn = self.createVisitNumber(visit_date)
+        vn = self.createVisitNumber()
+        if not vn:
+            return None
+        visit_time = self._visit_time_from_vn(vn)
         ovst_seq_id = self._get_next_ovst_seq_id()
         if not ovst_seq_id:
             self.signal.emit({'status': 'ไม่สามารถขอเลข ovst_seq_id จาก HIS ได้'})
@@ -625,7 +653,7 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
                       """
 
         result = vn
-        for attempt in range(2):
+        for attempt in range(5):
             if not self.ensure_connection():
                 print("his not connect")
                 return None
@@ -645,7 +673,30 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
                     time.sleep(0.5)
                     continue
                 self.conn.rollback()
-                if self._is_duplicate_ovst_seq_id_error(e) and attempt == 0:
+                if self._is_duplicate_vn_error(e, vn) and attempt < 4:
+                    new_vn = self.createVisitNumber()
+                    new_ovst_seq_id = self._get_next_ovst_seq_id(force_refresh_serial_key=True)
+                    if not new_vn or not new_ovst_seq_id:
+                        result = None
+                        break
+                    new_visit_time = self._visit_time_from_vn(new_vn)
+                    sql = sql.replace(f"set @vn = '{vn}';", f"set @vn = '{new_vn}';")
+                    sql = sql.replace(
+                        f"set @visit_time = (select if('{visit_time}'='None',CURRENT_TIME,'{visit_time}'));",
+                        f"set @visit_time = (select if('{new_visit_time}'='None',CURRENT_TIME,'{new_visit_time}'));",
+                    )
+                    sql = sql.replace(
+                        f"set @ovst_seq_id = {ovst_seq_id};",
+                        f"set @ovst_seq_id = {new_ovst_seq_id};",
+                    )
+                    vn = new_vn
+                    visit_time = new_visit_time
+                    ovst_seq_id = new_ovst_seq_id
+                    result = vn
+                    print("vn duplicate, get new vn and retry openVisitHosxp...")
+                    time.sleep(0.2)
+                    continue
+                if self._is_duplicate_ovst_seq_id_error(e) and attempt < 4:
                     new_ovst_seq_id = self._get_next_ovst_seq_id(force_refresh_serial_key=True)
                     if not new_ovst_seq_id:
                         result = None
@@ -669,7 +720,30 @@ WHERE t.cid = '{cid}'  LIMIT 1 """
             except pymysql.Error as e:
                 cur.close()
                 self.conn.rollback()
-                if self._is_duplicate_ovst_seq_id_error(e) and attempt == 0:
+                if self._is_duplicate_vn_error(e, vn) and attempt < 4:
+                    new_vn = self.createVisitNumber()
+                    new_ovst_seq_id = self._get_next_ovst_seq_id(force_refresh_serial_key=True)
+                    if not new_vn or not new_ovst_seq_id:
+                        result = None
+                        break
+                    new_visit_time = self._visit_time_from_vn(new_vn)
+                    sql = sql.replace(f"set @vn = '{vn}';", f"set @vn = '{new_vn}';")
+                    sql = sql.replace(
+                        f"set @visit_time = (select if('{visit_time}'='None',CURRENT_TIME,'{visit_time}'));",
+                        f"set @visit_time = (select if('{new_visit_time}'='None',CURRENT_TIME,'{new_visit_time}'));",
+                    )
+                    sql = sql.replace(
+                        f"set @ovst_seq_id = {ovst_seq_id};",
+                        f"set @ovst_seq_id = {new_ovst_seq_id};",
+                    )
+                    vn = new_vn
+                    visit_time = new_visit_time
+                    ovst_seq_id = new_ovst_seq_id
+                    result = vn
+                    print("vn duplicate, get new vn and retry openVisitHosxp...")
+                    time.sleep(0.2)
+                    continue
+                if self._is_duplicate_ovst_seq_id_error(e) and attempt < 4:
                     new_ovst_seq_id = self._get_next_ovst_seq_id(force_refresh_serial_key=True)
                     if not new_ovst_seq_id:
                         result = None

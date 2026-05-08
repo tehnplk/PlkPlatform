@@ -72,18 +72,30 @@ Edit [`version.py`](../version.py) and change `VERSION` (e.g. `"0.1.3"` → `"0.
 ### 2. Build the executable
 
 ```powershell
-uv run pyinstaller PlkPlatform.spec --noconfirm
+uv run --group dev pyinstaller --clean --noconfirm PlkPlatform.spec
 ```
 
 Output: `dist\PlkPlatform.exe`.
 
-### 3. Compute SHA256
+### 3. Verify embedded version
+
+PyInstaller can reuse stale build cache. Always verify the executable contains the same `VERSION`
+as [`version.py`](../version.py) before publishing:
+
+```powershell
+uv run --group dev python scripts\verify_pyinstaller_version.py dist\PlkPlatform.exe
+```
+
+The command must print `OK` for the release version. If it reports a mismatch, rebuild with
+`--clean` and do not upload the executable.
+
+### 4. Compute SHA256
 
 ```powershell
 (Get-FileHash -Algorithm SHA256 -Path "dist\PlkPlatform.exe").Hash.ToLower()
 ```
 
-### 4. Write `dist\latest.json`
+### 5. Write `dist\latest.json`
 
 ```json
 {
@@ -95,7 +107,7 @@ Output: `dist\PlkPlatform.exe`.
 }
 ```
 
-### 5. Upload to server
+### 6. Upload to server
 
 The release dir is owned by `adminplk` (set once during initial setup); web files need to end up owned by `www:www`. Upload via `/tmp/` then move with `sudo`:
 
@@ -135,7 +147,7 @@ Verify preview download:
 - `https://platform.plkhealth.go.th/preview/PlkPlatform.exe`
 - `https://platform.plkhealth.go.th/preview/plkplatform.exe` also works because nginx matches the exe path case-insensitively.
 
-### 6. Verify
+### 7. Verify
 
 - `https://platform.plkhealth.go.th/plkplatform/latest.json` returns the new version
 - `https://platform.plkhealth.go.th/` landing page shows the new version (it reads `latest.json` client-side)

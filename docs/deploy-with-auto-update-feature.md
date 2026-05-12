@@ -11,15 +11,14 @@ Development runs through `uv run start.py` skip update installation unless `PLK_
 
 ## Host
 - ssh adminplk@61.19.112.242 -pw Plkhe@lth00051 -p 2233
-- stable version path /var/www/wwwroot/platform.plkhealth.go.th/public/plkplatform
-- preview version path /var/www/wwwroot/platform.plkhealth.go.th/public/preview
+- stable version path /www/wwwroot/platform.plkhealth.go.th/platform/public/plkplatform
+- preview version path /www/wwwroot/platform.plkhealth.go.th/platform/public/preview
   - Preview deploy uploads only `PlkPlatform.exe`; do not generate or upload `latest.json` for preview builds.
 
 ## Base Url
 - https://platform.plkhealth.go.th/
 - stable download: https://platform.plkhealth.go.th/plkplatform/PlkPlatform.exe
 - preview download: https://platform.plkhealth.go.th/preview/PlkPlatform.exe
-- local port =  3011
 
 ## Tool to Upload file
  - pscp
@@ -59,11 +58,11 @@ The endpoint must return JSON:
 ## Build & Deploy
 
 Server paths:
-- Web root: `/www/wwwroot/platform.plkhealth.go.th/` (landing page `index.html`)
-- Release dir: `/var/www/wwwroot/platform.plkhealth.go.th/public/plkplatform/` (`PlkPlatform.exe`, `latest.json`)
-- Preview dir: `/var/www/wwwroot/platform.plkhealth.go.th/public/preview/` (`PlkPlatform.exe` only)
+- Web root: `/www/wwwroot/platform.plkhealth.go.th/platform/` (Next.js app)
+- Release dir: `/www/wwwroot/platform.plkhealth.go.th/platform/public/plkplatform/` (`PlkPlatform.exe`, `latest.json`)
+- Preview dir: `/www/wwwroot/platform.plkhealth.go.th/platform/public/preview/` (`PlkPlatform.exe` only)
 - Static nginx extension: `/www/server/panel/vhost/nginx/extension/platform.plkhealth.go.th/plkplatform_static.conf`
-- Backend: systemd unit `plkplatform-web.service` runs `python3 -m http.server 3011` bound to `127.0.0.1`, nginx proxies `platform.plkhealth.go.th` → `127.0.0.1:3011`.
+- App host: nginx serves the Next.js app under `/www/wwwroot/platform.plkhealth.go.th/platform/`. The static nginx extension serves `/plkplatform/` and `/preview/` directly from that app's `public/` directory.
 
 ### 1. Bump version
 
@@ -118,9 +117,9 @@ pscp -P 2233 -pw "Plkhe@lth00051" -batch \
   adminplk@61.19.112.242:/tmp/
 
 plink -ssh -P 2233 -pw "Plkhe@lth00051" -batch adminplk@61.19.112.242 \
-  "echo 'Plkhe@lth00051' | sudo -S mv /tmp/PlkPlatform.exe /tmp/latest.json /var/www/wwwroot/platform.plkhealth.go.th/public/plkplatform/ && \
-   echo 'Plkhe@lth00051' | sudo -S chown www:www /var/www/wwwroot/platform.plkhealth.go.th/public/plkplatform/PlkPlatform.exe /var/www/wwwroot/platform.plkhealth.go.th/public/plkplatform/latest.json && \
-   sha256sum /var/www/wwwroot/platform.plkhealth.go.th/public/plkplatform/PlkPlatform.exe"
+  "echo 'Plkhe@lth00051' | sudo -S mv /tmp/PlkPlatform.exe /tmp/latest.json /www/wwwroot/platform.plkhealth.go.th/platform/public/plkplatform/ && \
+   echo 'Plkhe@lth00051' | sudo -S chown www:www /www/wwwroot/platform.plkhealth.go.th/platform/public/plkplatform/PlkPlatform.exe /www/wwwroot/platform.plkhealth.go.th/platform/public/plkplatform/latest.json && \
+   sha256sum /www/wwwroot/platform.plkhealth.go.th/platform/public/plkplatform/PlkPlatform.exe"
 ```
 
 Verify the printed sha256 matches step 3.
@@ -138,9 +137,9 @@ pscp -P 2233 -pw "Plkhe@lth00051" -batch \
   adminplk@61.19.112.242:/tmp/PlkPlatform-preview.exe
 
 plink -ssh -P 2233 -pw "Plkhe@lth00051" -batch adminplk@61.19.112.242 \
-  "echo 'Plkhe@lth00051' | sudo -S mv /tmp/PlkPlatform-preview.exe /var/www/wwwroot/platform.plkhealth.go.th/public/preview/PlkPlatform.exe && \
-   echo 'Plkhe@lth00051' | sudo -S chown www:www /var/www/wwwroot/platform.plkhealth.go.th/public/preview/PlkPlatform.exe && \
-   sha256sum /var/www/wwwroot/platform.plkhealth.go.th/public/preview/PlkPlatform.exe"
+  "echo 'Plkhe@lth00051' | sudo -S mv /tmp/PlkPlatform-preview.exe /www/wwwroot/platform.plkhealth.go.th/platform/public/preview/PlkPlatform.exe && \
+   echo 'Plkhe@lth00051' | sudo -S chown www:www /www/wwwroot/platform.plkhealth.go.th/platform/public/preview/PlkPlatform.exe && \
+   sha256sum /www/wwwroot/platform.plkhealth.go.th/platform/public/preview/PlkPlatform.exe"
 ```
 
 Verify preview download:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time
 
-from PyQt6.QtCore import QDate, QLocale, Qt
+from PyQt6.QtCore import QDate, QLocale, QStringListModel, Qt
 from PyQt6.QtWidgets import (
     QComboBox,
     QCompleter,
@@ -51,14 +51,7 @@ class DxDoctorDialog(QDialog):
         self.dx_input = QLineEdit(dx_code)
         self.dx_input.setPlaceholderText("เช่น Z718")
 
-        self.doctor_combo = QComboBox()
-        for code, name in doctor_options:
-            label = f"{code} - {name}" if name else code
-            self.doctor_combo.addItem(label, code)
-        if default_doctor_code:
-            index = self.doctor_combo.findData(default_doctor_code)
-            if index >= 0:
-                self.doctor_combo.setCurrentIndex(index)
+        self.doctor_input = self._build_doctor_input(doctor_options, default_doctor_code)
 
         self.ovstist_combo = QComboBox()
         for code, name in ovstist_options:
@@ -78,20 +71,17 @@ class DxDoctorDialog(QDialog):
             self._user_changed_price = True
         else:
             initial_price_code = self._auto_pick_price_code(d)
-        self.price_combo = self._build_icode_combo(self._icode_options, initial_price_code)
+        self.price_input = self._build_icode_input(self._icode_options, initial_price_code)
         # connect signal *หลัง* ตั้ง initial เสร็จ — เพื่อไม่ให้ flag ถูก set ก่อนผู้ใช้จะแตะ
-        self.price_combo.currentIndexChanged.connect(self._on_price_changed)
-        line_edit = self.price_combo.lineEdit()
-        if line_edit is not None:
-            line_edit.textEdited.connect(self._on_price_changed)
+        self.price_input.textEdited.connect(self._on_price_changed)
         self.date_edit.dateChanged.connect(self._on_date_changed)
 
         form = QFormLayout()
         form.addRow("วันที่ visit", self.date_edit)
         form.addRow("รหัสวินิจฉัยหลัก", self.dx_input)
-        form.addRow("ผู้ให้บริการ (Doctor)", self.doctor_combo)
+        form.addRow("ผู้ให้บริการ (Doctor)", self.doctor_input)
         form.addRow("ประเภทการมา", self.ovstist_combo)
-        form.addRow("รหัสค่าบริการ", self.price_combo)
+        form.addRow("รหัสค่าบริการ", self.price_input)
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -129,64 +119,93 @@ class DxDoctorDialog(QDialog):
         if not code:
             return
         # block signals เพื่อไม่ให้ trigger _on_price_changed
-        self.price_combo.blockSignals(True)
-        line_edit = self.price_combo.lineEdit()
-        if line_edit is not None:
-            line_edit.blockSignals(True)
+        self.price_input.blockSignals(True)
         try:
-            index = self.price_combo.findData(code)
-            if index >= 0:
-                self.price_combo.setCurrentIndex(index)
+            self.price_input.setText(self._icode_code_to_label.get(code, code))
         finally:
-            self.price_combo.blockSignals(False)
-            if line_edit is not None:
-                line_edit.blockSignals(False)
+            self.price_input.blockSignals(False)
 
     def _on_price_changed(self, *_args) -> None:
         self._user_changed_price = True
 
-    def _build_icode_combo(
+    def _build_icode_input(
         self, options: list[tuple[str, str, str]], default_code: str
-    ) -> QComboBox:
-        combo = QComboBox()
-        combo.setEditable(True)
-        combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-        line_edit = combo.lineEdit()
-        if line_edit is not None:
-            line_edit.setPlaceholderText("ค้นหาด้วยรหัสหรือชื่อ (เช่น ถอดเล็บ)")
+    ) -> QLineEdit:
+        line_edit = QLineEdit()
+        line_edit.setPlaceholderText("ค้นหาด้วยรหัสหรือชื่อ (เช่น ถอดเล็บ)")
+
+        self._icode_label_to_code: dict[str, str] = {}
+        self._icode_code_to_label: dict[str, str] = {}
+        labels: list[str] = []
         for code, name, price in options:
             label = f"{code} - {name}"
             if price:
                 label += f" ({price} บ.)"
-            combo.addItem(label, code)
-        completer = QCompleter(combo)
+            labels.append(label)
+            self._icode_label_to_code[label] = code
+            self._icode_code_to_label[code] = label
+
+        self._icode_model = QStringListModel(labels, self)
+        completer = QCompleter(self._icode_model, self)
         completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         completer.setFilterMode(Qt.MatchFlag.MatchContains)
         completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
-        completer.setModel(combo.model())
-        combo.setCompleter(completer)
+        line_edit.setCompleter(completer)
+        self._icode_completer = completer
 
         if default_code:
-            index = combo.findData(default_code)
-            if index >= 0:
-                combo.setCurrentIndex(index)
-            elif line_edit is not None:
-                line_edit.setText(default_code)
-        return combo
+            line_edit.setText(self._icode_code_to_label.get(default_code, default_code))
+        return line_edit
 
-    def _current_icode(self, combo: QComboBox) -> str:
-        data = combo.currentData()
-        if data:
-            return str(data).strip()
-        line_edit = combo.lineEdit()
-        text = line_edit.text().strip() if line_edit is not None else combo.currentText().strip()
+    def _build_doctor_input(
+        self, options: list[tuple[str, str]], default_code: str
+    ) -> QLineEdit:
+        line_edit = QLineEdit()
+        line_edit.setPlaceholderText("ค้นหาด้วยรหัสหรือชื่อ Doctor")
+
+        self._doctor_label_to_code: dict[str, str] = {}
+        self._doctor_code_to_label: dict[str, str] = {}
+        labels: list[str] = []
+        for code, name in options:
+            label = f"{code} - {name}" if name else code
+            labels.append(label)
+            self._doctor_label_to_code[label] = code
+            self._doctor_code_to_label[code] = label
+
+        self._doctor_model = QStringListModel(labels, self)
+        self._doctor_completer = QCompleter(self._doctor_model, self)
+        self._doctor_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self._doctor_completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        self._doctor_completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        line_edit.setCompleter(self._doctor_completer)
+
+        if default_code:
+            line_edit.setText(self._doctor_code_to_label.get(default_code, default_code))
+        return line_edit
+
+    def _current_doctor_code(self) -> str:
+        text = self.doctor_input.text().strip()
+        if not text:
+            return ""
+        code = self._doctor_label_to_code.get(text)
+        if code:
+            return code.strip()
+        return text.split(" ", 1)[0].strip()
+
+    def _current_icode(self) -> str:
+        text = self.price_input.text().strip()
+        if not text:
+            return ""
+        code = self._icode_label_to_code.get(text)
+        if code:
+            return code.strip()
         return text.split(" ", 1)[0] if text else ""
 
     def values(self) -> tuple[date, str, str, str, str]:
         qd = self.date_edit.date()
         visit_date = date(qd.year(), qd.month(), qd.day())
         dx_code = self.dx_input.text().strip().upper()
-        doctor_code = str(self.doctor_combo.currentData() or "").strip()
+        doctor_code = self._current_doctor_code()
         ovstist_code = str(self.ovstist_combo.currentData() or "").strip()
-        price_code = self._current_icode(self.price_combo)
+        price_code = self._current_icode()
         return visit_date, dx_code, doctor_code, ovstist_code, price_code

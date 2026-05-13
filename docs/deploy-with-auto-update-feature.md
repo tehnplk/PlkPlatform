@@ -2,7 +2,7 @@
 *** จะ deploy ก็ต่อเมื่อ user สั่งให้ deploy เท่านั้น ***
 
 ## release version
-- edit @version.py
+- edit @version.py to bump version
 
 ## Auto Update
 

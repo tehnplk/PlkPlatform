@@ -5,6 +5,12 @@ from PyQt6.QtWebChannel import QWebChannel
 
 from Chat_ui import ChatUI
 from Setting_helper import get_settings
+from version import VERSION
+
+
+def build_chat_url(hoscode: str) -> str:
+    query = urlencode({"hoscode": hoscode.strip(), "version": VERSION})
+    return f"{ChatWindow.BASE_URL}?{query}"
 
 
 class PyQtBridge(QObject):
@@ -36,8 +42,7 @@ class ChatWindow(ChatUI):
 
     def reload_chat_session(self) -> None:
         hoscode = self._load_hoscode()
-        url = f"{self.BASE_URL}?{urlencode({'hoscode': hoscode})}"
-        self.web_view.setUrl(QUrl(url))
+        self.web_view.setUrl(QUrl(build_chat_url(hoscode)))
 
     def _load_hoscode(self) -> str:
         settings = get_settings()

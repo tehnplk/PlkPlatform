@@ -88,25 +88,32 @@ uv run --group dev python scripts\verify_pyinstaller_version.py dist\PlkPlatform
 The command must print `OK` for the release version. If it reports a mismatch, rebuild with
 `--clean` and do not upload the executable.
 
-### 4. Compute SHA256
+### 4. Generate `dist\latest.json`
+
+Use the manifest writer so the `sha256` is copied from the built executable bytes
+and cannot be mistyped:
+
+```powershell
+uv run python scripts\write_update_manifest.py dist\PlkPlatform.exe --notes "release notes"
+```
+
+Optional flags:
+
+```powershell
+uv run python scripts\write_update_manifest.py dist\PlkPlatform.exe `
+  --version "0.1.4" `
+  --release-date "YYYY-MM-DD" `
+  --url "https://platform.plkhealth.go.th/plkplatform/PlkPlatform.exe" `
+  --notes "release notes"
+```
+
+Manual check if needed:
 
 ```powershell
 (Get-FileHash -Algorithm SHA256 -Path "dist\PlkPlatform.exe").Hash.ToLower()
 ```
 
-### 5. Write `dist\latest.json`
-
-```json
-{
-  "version": "0.1.4",
-  "url": "https://platform.plkhealth.go.th/plkplatform/PlkPlatform.exe",
-  "sha256": "<sha256 from step 3>",
-  "release_date": "YYYY-MM-DD",
-  "notes": "release notes"
-}
-```
-
-### 6. Upload to server
+### 5. Upload to server
 
 The release dir is owned by `adminplk` (set once during initial setup); web files need to end up owned by `www:www`. Upload via `/tmp/` then move with `sudo`:
 
@@ -122,7 +129,7 @@ plink -ssh -P 2233 -pw "Plkhe@lth00051" -batch adminplk@61.19.112.242 \
    sha256sum /www/wwwroot/platform.plkhealth.go.th/platform/public/plkplatform/PlkPlatform.exe"
 ```
 
-Verify the printed sha256 matches step 3.
+Verify the printed sha256 matches `sha256` in `dist\latest.json`.
 
 The nginx static extension includes case-insensitive `PlkPlatform.exe` locations for both stable and preview downloads, so browser/user-agent URL casing such as `plkplatform.exe` or `PlkPlatform.EXE` still downloads the same file.
 
@@ -146,7 +153,7 @@ Verify preview download:
 - `https://platform.plkhealth.go.th/preview/PlkPlatform.exe`
 - `https://platform.plkhealth.go.th/preview/plkplatform.exe` also works because nginx matches the exe path case-insensitively.
 
-### 7. Verify
+### 6. Verify
 
 - `https://platform.plkhealth.go.th/plkplatform/latest.json` returns the new version
 - `https://platform.plkhealth.go.th/` landing page shows the new version (it reads `latest.json` client-side)

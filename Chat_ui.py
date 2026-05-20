@@ -1,6 +1,7 @@
 import os
 
 from PyQt6.QtCore import QStandardPaths, QSize, Qt
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QFileDialog, QMessageBox, QWidget, QVBoxLayout
 from PyQt6.QtWebEngineCore import QWebEngineDownloadRequest
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -89,3 +90,4 @@ class ChatUI(QWidget):
             }}
             """
         )
+        self.web_view.page().setBackgroundColor(QColor(theme.window))

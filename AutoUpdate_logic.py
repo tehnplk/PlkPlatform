@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -20,6 +21,7 @@ from version import DEFAULT_UPDATE_MANIFEST_URL, VERSION
 
 UPDATE_TIMEOUT_SECONDS = 20
 DOWNLOAD_CHUNK_SIZE = 1024 * 512
+SHA256_PATTERN = re.compile(r"^[0-9a-fA-F]{64}$")
 
 
 @dataclass(frozen=True)
@@ -109,10 +111,13 @@ def parse_update_info(payload: bytes) -> UpdateInfo:
     url = str(data.get("url", "")).strip()
     if not version or not url:
         raise ValueError("update manifest must include version and url")
+    sha256 = str(data.get("sha256", "")).strip()
+    if sha256 and not SHA256_PATTERN.fullmatch(sha256):
+        raise ValueError("update manifest sha256 must be exactly 64 hexadecimal characters")
     return UpdateInfo(
         version=version,
         url=url,
-        sha256=str(data.get("sha256", "")).strip().lower(),
+        sha256=sha256.lower(),
         release_date=str(data.get("release_date", "")).strip(),
         notes=str(data.get("notes", "")).strip(),
     )

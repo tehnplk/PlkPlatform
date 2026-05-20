@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 
 from AutoUpdate_logic import AutoUpdateController, DownloadedUpdate, is_packaged_app, launch_update_installer
 from BuddyCareExcel_logic import BuddyCareExcelWindow
@@ -37,7 +37,6 @@ class MainWindow(MainUI):
         self._quick_visit_subwindow = None
         self._patient_list_subwindow = None
         self._f43_export_subwindow = None
-        self._chat_subwindow = None
         self._hdc_telemed_subwindow = None
         self._query_subwindow = None
         self._auto_update = AutoUpdateController(parent=self)
@@ -45,6 +44,17 @@ class MainWindow(MainUI):
         self._auto_update.no_update.connect(self._hide_update_progress)
         self._auto_update.progress.connect(self._handle_update_progress)
         self._auto_update.failed.connect(self._handle_update_error)
+
+        # ตั้งค่าหน้าจอแชทและ System Tray
+        self._is_fully_loaded = False
+        self._has_pending_chat_notification = False
+        self._pending_chat_notification_data = None
+
+        self._chat_window = ChatWindow()
+        self._chat_window.setWindowFlag(Qt.WindowType.Window, True)
+        self._chat_window.setWindowTitle("แชท - Chat")
+        self._chat_window.notification_received.connect(self._handle_chat_notification)
+        self._setup_tray_icon()
 
         # ตรวจอัปเดตทุก 1 ชั่วโมง (เพิ่มเติมจากตอนเปิดโปรแกรม)
         self._update_timer = QTimer(self)
@@ -76,6 +86,8 @@ class MainWindow(MainUI):
         dialog = DlgHisSetting(self)
         if dialog.exec():
             self.statusBar().showMessage("บันทึกการตั้งค่า HIS แล้ว", 3000)
+            if self._chat_window is not None:
+                self._chat_window.reload_chat_session()
 
 
     def open_authen_module(self) -> None:
@@ -211,18 +223,6 @@ class MainWindow(MainUI):
         self._f43_export_subwindow = None
 
     def open_chat_module(self) -> None:
-        if self._chat_subwindow is not None:
-            self._chat_subwindow.show()
-            self._chat_subwindow.raise_()
-            self._chat_subwindow.activateWindow()
-            return
-
-        chat_window = ChatWindow()
-        chat_window.setWindowFlag(Qt.WindowType.Window, True)
-        chat_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        chat_window.setWindowTitle("แชท - Chat")
-        chat_window.destroyed.connect(self._clear_chat_reference)
-
         screen = self.screen() or QApplication.primaryScreen()
         avail = screen.availableGeometry()
         parent_geom = self.geometry()
@@ -230,18 +230,73 @@ class MainWindow(MainUI):
         chat_h = int(avail.height() * 0.8) + 40
         chat_x = avail.x() + avail.width() - chat_w - 3
         chat_y = avail.y() + avail.height() - chat_h
-        chat_window.setGeometry(chat_x, chat_y, chat_w, chat_h)
+        self._chat_window.setGeometry(chat_x, chat_y, chat_w, chat_h)
 
-        chat_window.show()
-        self._chat_subwindow = chat_window
+        self._chat_window.show()
+        self._chat_window.raise_()
+        self._chat_window.activateWindow()
         self.statusBar().showMessage("เปิดโมดูลแชทแล้ว", 3000)
 
-    def _clear_chat_reference(self) -> None:
-        self._chat_subwindow = None
+    def _setup_tray_icon(self) -> None:
+        self._tray_icon = QSystemTrayIcon(self)
+
+        # โหลดไอคอนสำหรับระบบถาดงาน
+        icon_path = resolve_app_path("icon.png")
+        if not icon_path.exists():
+            icon_path = resolve_app_path("icon.ico")
+
+        if icon_path.exists():
+            self._tray_icon.setIcon(QIcon(str(icon_path)))
+
+        self._tray_icon.setToolTip("PlkPlatform - HIS Management Utility")
+
+        # เชื่อมโยงสัญญาณการคลิกถาดงาน
+        self._tray_icon.activated.connect(self._handle_tray_activated)
+        self._tray_icon.messageClicked.connect(self.open_chat_module)
+        self._tray_icon.show()
+
+    def _handle_tray_activated(self, reason) -> None:
+        # คลิกหรือดับเบิ้ลคลิกเพื่อเปิดหน้าจอแชท
+        if reason in (QSystemTrayIcon.ActivationReason.Trigger, QSystemTrayIcon.ActivationReason.DoubleClick):
+            self.open_chat_module()
+
+    def _handle_chat_notification(self, title: str, message: str) -> None:
+        if not self._is_fully_loaded:
+            self._has_pending_chat_notification = True
+            self._pending_chat_notification_data = (title, message)
+            return
+
+        # หากหน้าต่างแชทกำลังเปิดอยู่ (Visible) ไม่ต้องแจ้งเตือนหรือแสดงซ้ำ
+        if self._chat_window.isVisible():
+            return
+
+        # 1. แสดงและเปิดหน้าจอแชทขึ้นมาทันทีตามคำขอของผู้ใช้
+        self.open_chat_module()
+
+        # 2. แสดง Toast Notification จาก System Tray
+        self._tray_icon.showMessage(
+            title if title else "ข้อความใหม่",
+            "",
+            QSystemTrayIcon.MessageIcon.Information,
+            5000
+        )
+
+        # 3. กะพริบแจ้งเตือนที่ Taskbar
+        QApplication.alert(self)
+        QApplication.alert(self._chat_window)
+
+    def on_startup_complete(self) -> None:
+        self._is_fully_loaded = True
+        if self._has_pending_chat_notification:
+            title, message = self._pending_chat_notification_data or ("", "")
+            self._handle_chat_notification(title, message)
+            self._has_pending_chat_notification = False
+            self._pending_chat_notification_data = None
 
     def closeEvent(self, event) -> None:
-        if self._chat_subwindow is not None:
-            self._chat_subwindow.close()
+        if self._chat_window is not None:
+            self._chat_window._is_quitting = True
+            self._chat_window.close()
         super().closeEvent(event)
 
     def open_about_dialog(self) -> None:
@@ -379,13 +434,37 @@ def main() -> None:
     icon_path = resolve_app_path("icon.ico")
     if icon_path.exists():
         app.setWindowIcon(QIcon(str(icon_path)))
+
+    # ป้องกันไม่ให้แอปปิดตัวเมื่อ splash screen ปิด/ซ่อน
+    app.setQuitOnLastWindowClosed(False)
+
+    # แสดง Splash Screen ตอนเริ่มต้น
+    from Splash_logic import SplashWindow
+
+    splash = SplashWindow()
+    splash.show_splash()
+
+    # ประมวลผลอีเวนต์เพื่อให้ Splash Screen แสดงผลทันที
+    app.processEvents()
+
+    # โหลดหน้าต่างหลักในระหว่างที่ Splash กำลังแสดง
     window = MainWindow()
     if icon_path.exists():
         window.setWindowIcon(QIcon(str(icon_path)))
-    window.show()
-    QTimer.singleShot(0, window.showMaximized)
-    QTimer.singleShot(1500, window.check_for_updates)
+
+    # แสดงหน้าต่างหลักหลังปิด Splash Screen อย่างนุ่มนวล
+    def on_splash_finished() -> None:
+        print("Splash screen finished, showing main window...")
+        window.show()
+        # คืนค่ากลับเป็น True เพื่อให้แอปปิดเมื่อปิดหน้าต่างหลัก
+        app.setQuitOnLastWindowClosed(True)
+        QTimer.singleShot(0, window.showMaximized)
+        QTimer.singleShot(1500, window.check_for_updates)
+
+    splash.fade_out_animation.finished.connect(on_splash_finished)
+
     sys.exit(app.exec())
+
 
 
 if __name__ == "__main__":

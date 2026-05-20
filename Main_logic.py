@@ -3,7 +3,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from PyQt6.QtCore import QTimer, Qt
+import requests
+from PyQt6.QtCore import QObject, QThread, QTimer, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 
@@ -20,12 +21,39 @@ from Query_logic import QueryWindow
 from TelemedDaily_ui import TelemedDailyWindow
 from Theme_helper import apply_application_palette
 from Chat_logic import ChatWindow
+from Setting_helper import get_settings
 from version import VERSION, RELEASE
+
+VERSION_UPDATE_API_URL = "https://platform.plkhealth.go.th/api/verion/update"
 
 
 def resolve_app_path(relative_path: str) -> Path:
     base_path = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
     return base_path / relative_path
+
+
+def post_version_update(hoscode: str, *, timeout: int = 10) -> None:
+    payload = {"hoscode": str(hoscode).strip(), "version": VERSION}
+    response = requests.post(VERSION_UPDATE_API_URL, json=payload, timeout=timeout)
+    response.raise_for_status()
+
+
+class VersionUpdateWorker(QObject):
+    finished = pyqtSignal()
+    failed = pyqtSignal(str)
+
+    def __init__(self, hoscode: str) -> None:
+        super().__init__()
+        self.hoscode = hoscode
+
+    @pyqtSlot()
+    def run(self) -> None:
+        try:
+            post_version_update(self.hoscode)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+        finally:
+            self.finished.emit()
 
 
 class MainWindow(MainUI):
@@ -39,6 +67,8 @@ class MainWindow(MainUI):
         self._f43_export_subwindow = None
         self._hdc_telemed_subwindow = None
         self._query_subwindow = None
+        self._version_update_thread = None
+        self._version_update_worker = None
         self._auto_update = AutoUpdateController(parent=self)
         self._auto_update.update_ready.connect(self._apply_downloaded_update)
         self._auto_update.no_update.connect(self._hide_update_progress)
@@ -287,11 +317,43 @@ class MainWindow(MainUI):
 
     def on_startup_complete(self) -> None:
         self._is_fully_loaded = True
+        self._post_version_update_after_startup()
         if self._has_pending_chat_notification:
             title, message = self._pending_chat_notification_data or ("", "")
             self._handle_chat_notification(title, message)
             self._has_pending_chat_notification = False
             self._pending_chat_notification_data = None
+
+    def _post_version_update_after_startup(self) -> None:
+        hoscode = self._load_hoscode()
+        if not hoscode or self._version_update_thread is not None:
+            return
+
+        thread = QThread(self)
+        worker = VersionUpdateWorker(hoscode)
+        worker.moveToThread(thread)
+
+        thread.started.connect(worker.run)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        worker.failed.connect(self._handle_version_update_error)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(self._clear_version_update_worker)
+
+        self._version_update_thread = thread
+        self._version_update_worker = worker
+        thread.start()
+
+    def _load_hoscode(self) -> str:
+        value = get_settings().value("hoscode", "")
+        return str(value).strip() if value else ""
+
+    def _handle_version_update_error(self, message: str) -> None:
+        print(f"ส่งข้อมูลเวอร์ชันไม่สำเร็จ: {message}", file=sys.stderr)
+
+    def _clear_version_update_worker(self) -> None:
+        self._version_update_thread = None
+        self._version_update_worker = None
 
     def closeEvent(self, event) -> None:
         if self._chat_window is not None:
@@ -459,6 +521,7 @@ def main() -> None:
         # คืนค่ากลับเป็น True เพื่อให้แอปปิดเมื่อปิดหน้าต่างหลัก
         app.setQuitOnLastWindowClosed(True)
         QTimer.singleShot(0, window.showMaximized)
+        QTimer.singleShot(500, window.on_startup_complete)
         QTimer.singleShot(1500, window.check_for_updates)
 
     splash.fade_out_animation.finished.connect(on_splash_finished)
